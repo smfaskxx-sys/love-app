@@ -141,11 +141,14 @@ function logout() {
 
 function showLoginModal() {
     document.getElementById('loginModal').classList.remove('hidden');
-    document.getElementById('mainApp').classList.add('hiddenfunction showMainApp() {
+    document.getElementById('mainApp').classList.add('hidden');
+}
+
+function showMainApp() {
     document.getElementById('loginModal').classList.add('hidden');
     document.getElementById('mainApp').classList.remove('hidden');
     updateUserProfile();
-    loadAllPages();更新用户显示
+    loadAllPages();
     const displayName = currentUser === 'huanghuang' ? '璠璠' : '渲渲';
     document.getElementById('currentUser').textContent = displayName;
     document.getElementById('greetingName').textContent = displayName;
