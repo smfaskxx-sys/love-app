@@ -148,14 +148,16 @@ function showMainApp() {
     document.getElementById('loginModal').classList.add('hidden');
     document.getElementById('mainApp').classList.remove('hidden');
     updateUserProfile();
-    loadDashboard();
-    loadCalendar();
-    loadCheckInProjects();
-    loadWallMessages();
-    loadWishList();
-    loadMissYouCalendar();
+    const displayName = currentUser === 'huanghuang' ? '璠璠' : '渲渲';
+    document.getElementById('currentUser').textContent = displayName;
+    document.getElementById('greetingName').textContent = displayName;
+    
+    // 初始化首页
+    updateCountdowns();
+    updateWeeklyStats();
     navigateToPage('home');
 }
+
 
 // ==================== 页面导航 ====================
 function navigateToPage(pageName) {
