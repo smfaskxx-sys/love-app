@@ -1266,3 +1266,14 @@ canvas {
         padding: 15px;
     }
 }
+#statsChart {
+    max-height: 300px;
+    max-width: 100%;
+}
+
+.checking-in {
+    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important;
+    color: white !important;
+    font-weight: bold;
+}
+
