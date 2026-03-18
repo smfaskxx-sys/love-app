@@ -10,7 +10,6 @@ const firebaseConfig = {
     measurementId: "G-S9CXQD2ZGH"
 };
 
-
 // 初始化 Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
@@ -21,6 +20,17 @@ let currentDate = new Date();
 let statsChart = null;
 const TOGETHER_DATE = new Date('2023-06-21');
 const EXAM_DATE = new Date('2026-12-20');
+
+// ==================== 用户信息更新 ====================
+function updateUserProfile() {
+    const userName = currentUser === 'huanghuang' ? '璠璠' : '渲渲';
+    const userEmoji = currentUser === 'huanghuang' ? '😸' : '😽';
+    
+    document.getElementById('userNameDisplay').textContent = userName;
+    document.getElementById('userAvatarDisplay').textContent = userEmoji;
+    document.getElementById('greetingName').textContent = userName;
+    document.getElementById('currentUser').textContent = userName;
+}
 
 // ==================== 初始化应用 ====================
 document.addEventListener('DOMContentLoaded', function() {
@@ -37,6 +47,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 绑定事件监听器
     bindEventListeners();
+    
+    // 更新用户信息
+    updateUserProfile();
 });
 
 // ==================== 事件绑定 ====================
@@ -110,24 +123,29 @@ function selectUser(user) {
     currentUser = user;
     localStorage.setItem('currentUser', user);
     showMainApp();
+    updateUserProfile();
 }
 
 function logout() {
     currentUser = null;
     localStorage.removeItem('currentUser');
+    // 清空活跃打卡
+    if (window.activeCheckIns) {
+        Object.values(window.activeCheckIns).forEach(checkIn => {
+            clearInterval(checkIn.intervalId);
+        });
+        window.activeCheckIns = {};
+    }
     location.reload();
 }
 
 function showLoginModal() {
     document.getElementById('loginModal').classList.remove('hidden');
-    document.getElementById('mainApp').classList.add('hidden');
-}
-
-function showMainApp() {
+    document.getElementById('mainApp').classList.add('hiddenfunction showMainApp() {
     document.getElementById('loginModal').classList.add('hidden');
     document.getElementById('mainApp').classList.remove('hidden');
-    
-    // 更新用户显示
+    updateUserProfile();
+    loadAllPages();更新用户显示
     const displayName = currentUser === 'huanghuang' ? '璠璠' : '渲渲';
     document.getElementById('currentUser').textContent = displayName;
     document.getElementById('greetingName').textContent = displayName;
@@ -460,14 +478,22 @@ function loadCheckInProjects() {
     db.ref('checkInProjects').once('value', snapshot => {
         const projects = snapshot.val() || {};
         
+        if (Object.keys(projects).length === 0) {
+            grid.innerHTML = '<div class="empty-state" style="grid-column: 1/-1;">还没有打卡项目，快来添加一个吧！</div>';
+            return;
+        }
+        
         Object.entries(projects).forEach(([key, project]) => {
             const card = document.createElement('div');
             card.className = 'project-card';
+            const isChecking = window.activeCheckIns && window.activeCheckIns[key];
+            const btnText = isChecking ? `⏱️ ${Math.floor((new Date().getTime() - window.activeCheckIns[key].startTime) / 1000)}s` : '✓ 打卡';
+            
             card.innerHTML = `
                 <div class="project-name">${project.name}</div>
                 <div class="project-creator">由 ${project.creator === 'huanghuang' ? '璠璠' : '渲渲'} 创建</div>
                 <div class="project-buttons">
-                    <button class="btn-primary" onclick="checkIn('${key}')">✓ 打卡</button>
+                    <button class="btn-primary ${isChecking ? 'checking-in' : ''}" data-project-id="${key}" onclick="checkIn('${key}')">${btnText}</button>
                     <button class="btn-danger" onclick="deleteProject('${key}')">删除</button>
                 </div>
             `;
@@ -481,16 +507,78 @@ function checkIn(projectId) {
         const project = snapshot.val();
         const now = new Date();
         
-        db.ref('checkInRecords').push({
-            projectId: projectId,
+        // 检查是否已有进行中的打卡
+        const existingCheckIn = window.activeCheckIns && window.activeCheckIns[projectId];
+        if (existingCheckIn) {
+            endCheckIn(projectId);
+            return;
+        }
+        
+        // 初始化活跃打卡对象
+        if (!window.activeCheckIns) {
+            window.activeCheckIns = {};
+        }
+        
+        const checkInId = Math.random().toString(36).substr(2, 9);
+        const startTime = now.getTime();
+        
+        window.activeCheckIns[projectId] = {
+            id: checkInId,
+            startTime: startTime,
             projectName: project.name,
-            user: currentUser,
-            timestamp: now.toISOString(),
-            note: ''
-        }).then(() => {
-            showNotification(`已打卡 ${project.name}`);
-            loadCheckInTimeline();
-        });
+            intervalId: null
+        };
+        
+        // 更新UI显示计时器
+        updateCheckInUI(projectId, project.name);
+        
+        // 启动计时器
+        const intervalId = setInterval(() => {
+            if (window.activeCheckIns[projectId]) {
+                updateCheckInUI(projectId, project.name);
+            }
+        }, 1000);
+        
+        window.activeCheckIns[projectId].intervalId = intervalId;
+        showNotification(`开始打卡 ${project.name}`);
+    });
+}
+
+function updateCheckInUI(projectId, projectName) {
+    const checkIn = window.activeCheckIns[projectId];
+    if (!checkIn) return;
+    
+    const elapsed = Math.floor((new Date().getTime() - checkIn.startTime) / 1000);
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    
+    const btn = document.querySelector(`[data-project-id="${projectId}"]`);
+    if (btn) {
+        btn.textContent = `⏱️ ${timeStr}`;
+        btn.classList.add('checking-in');
+    }
+}
+
+function endCheckIn(projectId) {
+    const checkIn = window.activeCheckIns[projectId];
+    if (!checkIn) return;
+    
+    clearInterval(checkIn.intervalId);
+    const elapsed = Math.floor((new Date().getTime() - checkIn.startTime) / 1000);
+    
+    db.ref('checkInRecords').push({
+        projectId: projectId,
+        projectName: checkIn.projectName,
+        user: currentUser,
+        timestamp: new Date().toISOString(),
+        duration: elapsed,
+        note: ''
+    }).then(() => {
+        delete window.activeCheckIns[projectId];
+        showNotification(`打卡完成 ${checkIn.projectName}，耗时 ${Math.floor(elapsed/60)}分${elapsed%60}秒`);
+        loadCheckInProjects();
+        loadCheckInTimeline();
     });
 }
 
@@ -562,10 +650,14 @@ function updateChart() {
             data: data,
             options: {
                 responsive: true,
+                maintainAspectRatio: true,
                 plugins: {
                     legend: {
                         position: 'top'
                     }
+                },
+                layout: {
+                    padding: 10
                 }
             }
         };
@@ -642,8 +734,7 @@ function loadMessages() {
             wall.innerHTML = '<div class="empty-state">还没有留言，快来发送第一条吧！</div>';
             return;
         }
-        
-        Object.entries(messages).reverse().forEach(([key, message]) => {
+              Object.entries(messages).reverse().forEach(([key, message]) => {
             const card = document.createElement('div');
             card.className = 'message-card';
             const time = new Date(message.timestamp).toLocaleString('zh-CN');
@@ -658,6 +749,50 @@ function loadMessages() {
                     <button class="btn-secondary" onclick="showReplyModal('${key}')">回复</button>
                 </div>
             `;
+            
+            // 添加回复显示
+            if (message.replies && Object.keys(message.replies).length > 0) {
+                const repliesDiv = document.createElement('div');
+                repliesDiv.className = 'message-replies';
+                
+                Object.entries(message.replies).forEach(([replyKey, reply]) => {
+                    const replyTime = new Date(reply.timestamp).toLocaleString('zh-CN');
+                    const replyItem = document.createElement('div');
+                    replyItem.className = 'reply-item';
+                    replyItem.innerHTML = `
+                        <div class="reply-header">
+                            <span class="reply-user">└─ ${reply.user === 'huanghuang' ? '璠璠' : '渲渲'}</span>
+                            <span class="reply-time">${replyTime}</span>
+                        </div>
+                        <div class="reply-content">${reply.content}</div>
+                    `;
+                    repliesDiv.appendChild(replyItem);
+                });
+                
+                card.appendChild(repliesDiv);
+            }
+            
+            wall.appendChild(card);
+        });e.replies && Object.keys(message.replies).length > 0) {
+                const repliesDiv = document.createElement('div');
+                repliesDiv.className = 'message-replies';
+                
+                Object.entries(message.replies).forEach(([replyKey, reply]) => {
+                    const replyTime = new Date(reply.timestamp).toLocaleString('zh-CN');
+                    const replyItem = document.createElement('div');
+                    replyItem.className = 'reply-item';
+                    replyItem.innerHTML = `
+                        <div class="reply-header">
+                            <span class="reply-user">└─ ${reply.user === 'huanghuang' ? '璠璠' : '渲渲'}</span>
+                            <span class="reply-time">${replyTime}</span>
+                        </div>
+                        <div class="reply-content">${reply.content}</div>
+                    `;
+                    repliesDiv.appendChild(replyItem);
+                });
+                
+                card.appendChild(repliesDiv);
+            }
             
             wall.appendChild(card);
         });
