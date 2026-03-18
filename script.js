@@ -1,364 +1,851 @@
-// ===== 配置参数 =====
-const CONFIG = {
-    togetherDate: new Date('2023-06-21'),
-    examDate: new Date('2026-12-20'),
-    checkInProjects: ['学习', '运动', '陪伴', '约会', '做饭', '休息'],
+// Firebase 配置
+const firebaseConfig = {
+    apiKey: "AIzaSyAv4cVMOGAUHa1km02eLL0VfG8UHCdzELo",
+    authDomain: "love-app-12345.firebaseapp.com",
+    databaseURL: "https://love-app-12345-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "love-app-12345",
+    storageBucket: "love-app-12345.firebasestorage.app",
+    messagingSenderId: "769508228824",
+    appId: "1:769508228824:web:cebfea9f5ab96ea4e761ad"
 };
 
-// ===== 全局变量 =====
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
 let currentUser = null;
-let currentDate = new Date();
+let selectedDate = new Date();
+let missCalendarDate = new Date();
 let chart = null;
 
-// ===== 初始化 =====
 document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
 });
 
 function initializeApp() {
-    // 检查用户登录状态
     const savedUser = localStorage.getItem('currentUser');
     if (savedUser) {
         currentUser = savedUser;
         showMainApp();
+        loadAllData();
     } else {
         showLoginModal();
     }
-
-    // 绑定事件
     bindEvents();
-    
-    // 初始化日期
-    loadDateConfig();
-    
-    // 更新首页数据
-    updateHomePage();
 }
 
 function bindEvents() {
-    // 导航栏链接
+    document.querySelectorAll('.identity-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            selectIdentity(this.dataset.user);
+        });
+    });
+
     document.querySelectorAll('.nav-link').forEach(link => {
         link.addEventListener('click', function(e) {
             e.preventDefault();
-            const page = this.dataset.page;
-            switchPage(page);
+            switchPage(this.dataset.page);
         });
     });
 
-    // 切换身份按钮
-    document.getElementById('switchUserBtn').addEventListener('click', function() {
-        showLoginModal();
-    });
-
-    // 登录按钮
-    document.querySelectorAll('[data-user]').forEach(btn => {
-        btn.addEventListener('click', function() {
-            currentUser = this.dataset.user;
-            localStorage.setItem('currentUser', currentUser);
-            closeModal('loginModal');
-            showMainApp();
+    const hamburger = document.getElementById('hamburger');
+    if (hamburger) {
+        hamburger.addEventListener('click', function() {
+            const menu = document.getElementById('navMenu');
+            menu.classList.toggle('active');
         });
-    });
+    }
 
-    // 日历导航
-    document.getElementById('prevMonth').addEventListener('click', previousMonth);
-    document.getElementById('nextMonth').addEventListener('click', nextMonth);
+    if (document.getElementById('switchUserBtn')) {
+        document.getElementById('switchUserBtn').addEventListener('click', switchUser);
+    }
+    if (document.getElementById('missYouBtn')) {
+        document.getElementById('missYouBtn').addEventListener('click', recordMissYou);
+    }
+    if (document.getElementById('prevMonth')) {
+        document.getElementById('prevMonth').addEventListener('click', () => changeMonth(-1));
+    }
+    if (document.getElementById('nextMonth')) {
+        document.getElementById('nextMonth').addEventListener('click', () => changeMonth(1));
+    }
+    if (document.getElementById('missPrevMonth')) {
+        document.getElementById('missPrevMonth').addEventListener('click', () => changeMissMonth(-1));
+    }
+    if (document.getElementById('missNextMonth')) {
+        document.getElementById('missNextMonth').addEventListener('click', () => changeMissMonth(1));
+    }
 
-    // 我想你了按钮
-    document.getElementById('missYouBtn').addEventListener('click', recordMissYou);
+    if (document.getElementById('togetherDate')) {
+        document.getElementById('togetherDate').addEventListener('change', function() {
+            localStorage.setItem('togetherDate', this.value);
+            updateCountdowns();
+        });
+    }
 
-    // 日期配置
-    document.getElementById('togetherDate').addEventListener('change', updateTogetherDate);
-    document.getElementById('examDate').addEventListener('change', updateExamDate);
+    if (document.getElementById('examDate')) {
+        document.getElementById('examDate').addEventListener('change', function() {
+            localStorage.setItem('examDate', this.value);
+            updateCountdowns();
+        });
+    }
 
-    // 初始化日历
-    renderCalendar();
+    const togetherDate = localStorage.getItem('togetherDate') || '2023-06-21';
+    const examDate = localStorage.getItem('examDate') || '2026-12-20';
+    if (document.getElementById('togetherDate')) {
+        document.getElementById('togetherDate').value = togetherDate;
+    }
+    if (document.getElementById('examDate')) {
+        document.getElementById('examDate').value = examDate;
+    }
 }
 
-// ===== 用户管理 =====
 function showLoginModal() {
-    const modal = document.getElementById('loginModal');
-    modal.classList.add('show');
+    document.getElementById('loginModal').classList.add('show');
+    document.getElementById('mainApp').classList.add('hidden');
 }
 
 function showMainApp() {
-    const modal = document.getElementById('loginModal');
-    modal.classList.remove('show');
-    
-    const userName = currentUser === 'me' ? '我' : '男友';
-    document.getElementById('currentUser').textContent = userName;
-    document.getElementById('greetingName').textContent = userName;
-    
-    switchPage('home');
+    document.getElementById('loginModal').classList.remove('show');
+    document.getElementById('mainApp').classList.remove('hidden');
+    updateCurrentUserDisplay();
 }
 
-// ===== 页面切换 =====
+function selectIdentity(user) {
+    currentUser = user;
+    localStorage.setItem('currentUser', user);
+    showMainApp();
+    loadAllData();
+}
+
+function switchUser() {
+    const newUser = currentUser === 'huanghuang' ? 'xuanxuan' : 'huanghuang';
+    selectIdentity(newUser);
+}
+
+function updateCurrentUserDisplay() {
+    const userName = currentUser === 'huanghuang' ? '璠璠' : '渲渲';
+    if (document.getElementById('currentUser')) {
+        document.getElementById('currentUser').textContent = userName;
+    }
+    if (document.getElementById('greetingName')) {
+        document.getElementById('greetingName').textContent = userName;
+    }
+}
+
 function switchPage(pageName) {
-    // 隐藏所有页面
     document.querySelectorAll('.page').forEach(page => {
         page.classList.remove('active');
     });
 
-    // 显示选中页面
-    const page = document.getElementById(pageName);
-    if (page) {
-        page.classList.add('active');
-    }
+    document.getElementById(pageName).classList.add('active');
 
-    // 更新导航栏
     document.querySelectorAll('.nav-link').forEach(link => {
         link.classList.remove('active');
+        if (link.dataset.page === pageName) {
+            link.classList.add('active');
+        }
     });
-    document.querySelector(`[data-page="${pageName}"]`).classList.add('active');
 
-    // 根据页面类型执行初始化
-    switch(pageName) {
-        case 'home':
-            updateHomePage();
-            break;
-        case 'calendar':
-            renderCalendar();
-            break;
-        case 'room':
-            renderCheckInTimeline();
-            break;
-        case 'messages':
-            renderMessagesWall();
-            markMessagesAsRead();
-            break;
-        case 'wishlist':
-            renderWishlist();
-            break;
-        case 'miss':
-            renderMissHistory();
-            break;
-        case 'stats':
-            updateChart();
-            break;
-        case 'settings':
-            loadDateConfig();
-            break;
+    const menu = document.getElementById('navMenu');
+    if (menu) {
+        menu.classList.remove('active');
+    }
+
+    if (pageName === 'calendar') {
+        renderCalendar();
+    } else if (pageName === 'room') {
+        renderCheckInProjects();
+        renderCheckInTimeline();
+        updateChart();
+    } else if (pageName === 'miss') {
+        renderMissCalendar();
+        updateMissStats();
+    } else if (pageName === 'messages') {
+        renderMessagesWall();
+        markAllMessagesAsRead();
     }
 }
 
-// ===== 首页功能 =====
-function updateHomePage() {
-    updateCountdown();
-    updateExamCountdown();
-    updateUnreadCount();
-    updateMissYouStats();
+function updateCountdowns() {
+    const togetherDate = localStorage.getItem('togetherDate') || '2023-06-21';
+    const examDate = localStorage.getItem('examDate') || '2026-12-20';
+
+    const together = calculateDaysDifference(new Date(togetherDate), new Date());
+    const exam = calculateDaysDifference(new Date(), new Date(examDate));
+
+    if (document.getElementById('togetherDays')) {
+        document.getElementById('togetherDays').textContent = together;
+    }
+    if (document.getElementById('examDays')) {
+        document.getElementById('examDays').textContent = Math.max(0, exam);
+    }
 }
 
-function updateCountdown() {
-    const today = new Date();
-    const together = CONFIG.togetherDate;
-    const diff = today - together;
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    document.getElementById('togetherDays').textContent = days;
-}
-
-function updateExamCountdown() {
-    const today = new Date();
-    const exam = CONFIG.examDate;
-    const diff = exam - today;
-    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-    document.getElementById('examDays').textContent = Math.max(0, days);
-}
-
-function updateUnreadCount() {
-    const messages = getMessages();
-    const unread = messages.filter(msg => !msg.read).length;
-    document.getElementById('unreadCount').textContent = unread;
-}
-
-function updateMissYouStats() {
-    const missYouRecords = getMissYouRecords();
-    const today = new Date().toDateString();
-    const todayCount = missYouRecords.filter(record => 
-        new Date(record.date).toDateString() === today
-    ).length;
-    
-    document.getElementById('todayMissCount').textContent = todayCount;
-    document.getElementById('totalMissCount').textContent = missYouRecords.length;
+function calculateDaysDifference(date1, date2) {
+    const diffTime = Math.abs(date2 - date1);
+    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
 }
 
 function recordMissYou() {
-    const missYouRecords = getMissYouRecords();
-    missYouRecords.push({
-        user: currentUser,
-        date: new Date().toISOString(),
-    });
-    localStorage.setItem('missYouRecords', JSON.stringify(missYouRecords));
-    updateMissYouStats();
+    const today = new Date().toISOString().split('T')[0];
+    const key = `miss_${currentUser}_${today}`;
     
-    // 显示提示
-    showNotification('已记录你的想念 ❤️');
+    let missData = JSON.parse(localStorage.getItem('missData') || '{}');
+    if (!missData[key]) {
+        missData[key] = [];
+    }
+    
+    missData[key].push(new Date().toLocaleTimeString());
+    localStorage.setItem('missData', JSON.stringify(missData));
+
+    db.ref(`miss/${currentUser}`).push({
+        date: today,
+        time: new Date().toLocaleTimeString(),
+        timestamp: new Date().getTime()
+    });
+
+    updateMissStats();
+    showNotification('❤️ 已记录您的想念');
 }
 
-// ===== 日历功能 =====
+function updateMissStats() {
+    const today = new Date().toISOString().split('T')[0];
+    const key = `miss_${currentUser}_${today}`;
+    
+    let missData = JSON.parse(localStorage.getItem('missData') || '{}');
+    const todayCount = missData[key] ? missData[key].length : 0;
+
+    let totalCount = 0;
+    Object.keys(missData).forEach(k => {
+        if (k.startsWith('miss_')) {
+            totalCount += missData[k].length;
+        }
+    });
+
+    if (document.getElementById('todayMissCount')) {
+        document.getElementById('todayMissCount').textContent = todayCount;
+    }
+    if (document.getElementById('totalMissCount')) {
+        document.getElementById('totalMissCount').textContent = totalCount;
+    }
+    if (document.getElementById('missStatsTotal')) {
+        document.getElementById('missStatsTotal').textContent = totalCount;
+    }
+
+    let lastTime = '从未';
+    if (missData[key] && missData[key].length > 0) {
+        lastTime = missData[key][missData[key].length - 1];
+    }
+    if (document.getElementById('missStatsLast')) {
+        document.getElementById('missStatsLast').textContent = lastTime;
+    }
+
+    updateWeeklyStats();
+}
+
+function updateWeeklyStats() {
+    const today = new Date();
+    const weekStart = new Date(today.setDate(today.getDate() - today.getDay()));
+    
+    let missData = JSON.parse(localStorage.getItem('missData') || '{}');
+    let weekMissCount = 0;
+
+    Object.keys(missData).forEach(key => {
+        if (key.startsWith('miss_')) {
+            const dateStr = key.split('_')[2];
+            const date = new Date(dateStr);
+            if (date >= weekStart) {
+                weekMissCount += missData[key].length;
+            }
+        }
+    });
+
+    let checkInData = JSON.parse(localStorage.getItem('checkInData') || '{}');
+    let checkInCount = 0;
+    Object.keys(checkInData).forEach(key => {
+        const dateStr = key.split('_')[1];
+        const date = new Date(dateStr);
+        if (date >= weekStart) {
+            checkInCount++;
+        }
+    });
+
+    let wishData = JSON.parse(localStorage.getItem('wishData') || '[]');
+
+    if (document.getElementById('weekCheckIns')) {
+        document.getElementById('weekCheckIns').textContent = checkInCount;
+    }
+    if (document.getElementById('weekMiss')) {
+        document.getElementById('weekMiss').textContent = weekMissCount;
+    }
+    if (document.getElementById('weekWishes')) {
+        document.getElementById('weekWishes').textContent = wishData.length;
+    }
+}
+
 function renderCalendar() {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    
-    // 更新标题
-    const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', 
-                        '7月', '8月', '9月', '10月', '11月', '12月'];
-    document.getElementById('monthYear').textContent = `${year}年 ${monthNames[month]}`;
-    
-    // 清空日历
-    const calendarGrid = document.getElementById('calendarGrid');
-    calendarGrid.innerHTML = '';
-    
-    // 添加星期头
+    const year = selectedDate.getFullYear();
+    const month = selectedDate.getMonth();
+
+    if (document.getElementById('monthYear')) {
+        document.getElementById('monthYear').textContent = `${year}年${month + 1}月`;
+    }
+
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+
+    let html = '';
+
     const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
     weekDays.forEach(day => {
-        const header = document.createElement('div');
-        header.className = 'calendar-day-header';
-        header.textContent = day;
-        calendarGrid.appendChild(header);
+        html += `<div class="calendar-day-header">${day}</div>`;
     });
-    
-    // 获取第一天是星期几
-    const firstDay = new Date(year, month, 1).getDay();
-    
-    // 获取该月天数
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    
-    // 获取上月天数
-    const daysInPrevMonth = new Date(year, month, 0).getDate();
-    
-    // 添加上月的日期
-    for (let i = firstDay - 1; i >= 0; i--) {
-        const day = document.createElement('div');
-        day.className = 'calendar-day other-month';
-        day.textContent = daysInPrevMonth - i;
-        calendarGrid.appendChild(day);
+
+    for (let i = 0; i < startingDayOfWeek; i++) {
+        html += '<div class="calendar-day"></div>';
     }
-    
-    // 添加本月的日期
-    const today = new Date();
-    for (let i = 1; i <= daysInMonth; i++) {
-        const day = document.createElement('div');
-        day.className = 'calendar-day';
-        day.textContent = i;
-        
-        const date = new Date(year, month, i);
-        if (date.toDateString() === today.toDateString()) {
-            day.classList.add('today');
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month, day);
+        const dateStr = date.toISOString().split('T')[0];
+        const isToday = dateStr === new Date().toISOString().split('T')[0];
+
+        html += `<div class="calendar-day ${isToday ? 'today' : ''}" onclick="selectDate('${dateStr}')">${day}</div>`;
+    }
+
+    if (document.getElementById('calendarGrid')) {
+        document.getElementById('calendarGrid').innerHTML = html;
+    }
+    loadDailyData();
+}
+
+function changeMonth(offset) {
+    selectedDate.setMonth(selectedDate.getMonth() + offset);
+    renderCalendar();
+}
+
+function selectDate(dateStr) {
+    selectedDate = new Date(dateStr);
+    renderCalendar();
+}
+
+function loadDailyData() {
+    const dateStr = selectedDate.toISOString().split('T')[0];
+
+    let recordsData = JSON.parse(localStorage.getItem('recordsData') || '{}');
+    let dailyRecords = recordsData[dateStr] || [];
+
+    let recordsHtml = '';
+    dailyRecords.forEach(record => {
+        recordsHtml += `
+            <div class="record-item">
+                <strong>${record.user === 'huanghuang' ? '璠璠' : '渲渲'}</strong>
+                <p>${record.text}</p>
+                ${record.image ? `<img src="${record.image}" class="record-image">` : ''}
+                <div class="record-meta">${record.time}</div>
+            </div>
+        `;
+    });
+
+    if (document.getElementById('dailyRecords')) {
+        document.getElementById('dailyRecords').innerHTML = recordsHtml || '<p>暂无记录</p>';
+    }
+
+    let messagesData = JSON.parse(localStorage.getItem('messagesData') || '{}');
+    let dailyMessages = messagesData[dateStr] || [];
+
+    let messagesHtml = '';
+    dailyMessages.forEach((msg, index) => {
+        let repliesHtml = '';
+        if (msg.replies && msg.replies.length > 0) {
+            msg.replies.forEach(reply => {
+                repliesHtml += `
+                    <div class="reply-item">
+                        <div class="reply-header">
+                            <span class="reply-author">${reply.user === 'huanghuang' ? '璠璠' : '渲渲'}</span>
+                            <span class="reply-time">${reply.time}</span>
+                        </div>
+                        <div class="reply-text">${reply.text}</div>
+                    </div>
+                `;
+            });
         }
-        
-        day.addEventListener('click', function() {
-            selectDate(date);
+
+        messagesHtml += `
+            <div class="message-item">
+                <strong>${msg.user === 'huanghuang' ? '璠璠' : '渲渲'}</strong>
+                <p>${msg.text}</p>
+                ${msg.image ? `<img src="${msg.image}" class="message-image">` : ''}
+                <div class="message-meta">${msg.time}</div>
+                <button class="reply-button" onclick="openReplyModal(${index}, '${dateStr}')">回复</button>
+                ${repliesHtml ? `<div class="message-replies">${repliesHtml}</div>` : ''}
+            </div>
+        `;
+    });
+
+    if (document.getElementById('dailyMessages')) {
+        document.getElementById('dailyMessages').innerHTML = messagesHtml || '<p>暂无留言</p>';
+    }
+}
+
+function addCheckInProject() {
+    const projectName = document.getElementById('projectInput').value.trim();
+    if (!projectName) {
+        showNotification('请输入项目名称');
+        return;
+    }
+
+    let projectsData = JSON.parse(localStorage.getItem('checkInProjects') || '[]');
+    projectsData.push({
+        id: Date.now(),
+        name: projectName,
+        createdBy: currentUser,
+        createdAt: new Date().toLocaleString()
+    });
+
+    localStorage.setItem('checkInProjects', JSON.stringify(projectsData));
+    document.getElementById('projectInput').value = '';
+    renderCheckInProjects();
+    showNotification('✅ 项目已创建');
+}
+
+function renderCheckInProjects() {
+    let projectsData = JSON.parse(localStorage.getItem('checkInProjects') || '[]');
+    let html = '';
+
+    projectsData.forEach(project => {
+        const today = new Date().toISOString().split('T')[0];
+        const checkInKey = `checkin_${project.id}_${today}`;
+        let checkInData = JSON.parse(localStorage.getItem('checkInData') || '{}');
+        const todayCheckIn = checkInData[checkInKey];
+
+        const isActive = todayCheckIn && !todayCheckIn.endTime;
+        const status = isActive ? '🟢 打卡中' : '⚪ 未开始';
+        const timeDisplay = todayCheckIn ? `${todayCheckIn.startTime}${todayCheckIn.endTime ? '~' + todayCheckIn.endTime : ''}` : '';
+
+        html += `
+            <div class="checkin-card">
+                <div class="checkin-title">${project.name}</div>
+                <div class="checkin-status">${status}</div>
+                ${timeDisplay ? `<div class="checkin-time">${timeDisplay}</div>` : ''}
+                <div class="checkin-buttons">
+                    ${!isActive ? `<button class="btn-start" onclick="startCheckIn(${project.id})">开始打卡</button>` : ''}
+                    ${isActive ? `<button class="btn-end" onclick="endCheckIn(${project.id})">结束打卡</button>` : ''}
+                </div>
+            </div>
+        `;
+    });
+
+    if (document.getElementById('checkInProjects')) {
+        document.getElementById('checkInProjects').innerHTML = html || '<p>暂无项目</p>';
+    }
+}
+
+function startCheckIn(projectId) {
+    const today = new Date().toISOString().split('T')[0];
+    const checkInKey = `checkin_${projectId}_${today}`;
+    const startTime = new Date().toLocaleTimeString();
+
+    let checkInData = JSON.parse(localStorage.getItem('checkInData') || '{}');
+    checkInData[checkInKey] = {
+        projectId: projectId,
+        date: today,
+        startTime: startTime,
+        endTime: null,
+        user: currentUser
+    };
+
+    localStorage.setItem('checkInData', JSON.stringify(checkInData));
+
+    db.ref(`checkIn/${currentUser}/${today}/${projectId}`).set({
+        startTime: startTime,
+        endTime: null,
+        timestamp: new Date().getTime()
+    });
+
+    renderCheckInProjects();
+    showNotification('✅ 打卡开始');
+}
+
+function endCheckIn(projectId) {
+    const today = new Date().toISOString().split('T')[0];
+    const checkInKey = `checkin_${projectId}_${today}`;
+    const endTime = new Date().toLocaleTimeString();
+
+    let checkInData = JSON.parse(localStorage.getItem('checkInData') || '{}');
+    if (checkInData[checkInKey]) {
+        checkInData[checkInKey].endTime = endTime;
+    }
+
+    localStorage.setItem('checkInData', JSON.stringify(checkInData));
+
+    db.ref(`checkIn/${currentUser}/${today}/${projectId}`).update({
+        endTime: endTime
+    });
+
+    renderCheckInProjects();
+    renderCheckInTimeline();
+    showNotification('✅ 打卡结束');
+}
+
+function renderCheckInTimeline() {
+    const today = new Date().toISOString().split('T')[0];
+    let checkInData = JSON.parse(localStorage.getItem('checkInData') || '{}');
+    let projectsData = JSON.parse(localStorage.getItem('checkInProjects') || '[]');
+
+    let timeGroups = {};
+    Object.keys(checkInData).forEach(key => {
+        const data = checkInData[key];
+        if (data.date === today) {
+            const timeKey = data.startTime;
+            if (!timeGroups[timeKey]) {
+                timeGroups[timeKey] = [];
+            }
+            timeGroups[timeKey].push(data);
+        }
+    });
+
+    let html = '';
+    Object.keys(timeGroups).sort().forEach((timeKey, index) => {
+        const items = timeGroups[timeKey];
+        let itemsHtml = '';
+
+        items.forEach(item => {
+            const project = projectsData.find(p => p.id === item.projectId);
+            const userName = item.user === 'huanghuang' ? '璠璠' : '渲渲';
+            itemsHtml += `
+                <div style="margin-bottom: 0.5rem;">
+                    <strong>${project ? project.name : '未知项目'}</strong> - ${userName}
+                    ${item.endTime ? `<span>${item.startTime} ~ ${item.endTime}</span>` : `<span>${item.startTime} ~ 进行中</span>`}
+                </div>
+            `;
         });
-        
-        calendarGrid.appendChild(day);
-    }
-    
-    // 添加下月的日期
-    const totalCells = calendarGrid.children.length - 7; // 减去星期头
-    const remainingCells = 42 - totalCells; // 6行 * 7列 = 42
-    for (let i = 1; i <= remainingCells; i++) {
-        const day = document.createElement('div');
-        day.className = 'calendar-day other-month';
-        day.textContent = i;
-        calendarGrid.appendChild(day);
-    }
-    
-    // 选择今天
-    selectDate(today);
-}
 
-function previousMonth() {
-    currentDate.setMonth(currentDate.getMonth() - 1);
-    renderCalendar();
-}
-
-function nextMonth() {
-    currentDate.setMonth(currentDate.getMonth() + 1);
-    renderCalendar();
-}
-
-function selectDate(date) {
-    currentDate = date;
-    
-    // 更新日历选中状态
-    document.querySelectorAll('.calendar-day.selected').forEach(day => {
-        day.classList.remove('selected');
+        html += `
+            <div class="timeline-item">
+                <div class="timeline-marker">${index + 1}</div>
+                <div class="timeline-content">
+                    <h4>时间段 ${timeKey}</h4>
+                    ${itemsHtml}
+                </div>
+            </div>
+        `;
     });
-    
-    // 找到对应的日期元素并标记为选中
-    const dayElements = document.querySelectorAll('.calendar-day');
-    dayElements.forEach(element => {
-        if (element.textContent == date.getDate() && !element.classList.contains('other-month')) {
-            element.classList.add('selected');
+
+    if (document.getElementById('checkInTimeline')) {
+        document.getElementById('checkInTimeline').innerHTML = html || '<p>今天还没有打卡记录</p>';
+    }
+}
+
+function updateChart() {
+    const timeRange = document.getElementById('timeRange') ? document.getElementById('timeRange').value : 'week';
+    const chartType = document.getElementById('chartType') ? document.getElementById('chartType').value : 'pie';
+
+    let projectsData = JSON.parse(localStorage.getItem('checkInProjects') || '[]');
+    let checkInData = JSON.parse(localStorage.getItem('checkInData') || '{}');
+
+    let projectStats = {};
+    projectsData.forEach(project => {
+        projectStats[project.name] = 0;
+    });
+
+    const today = new Date();
+    let startDate = new Date();
+
+    if (timeRange === 'week') {
+        startDate.setDate(today.getDate() - today.getDay());
+    } else if (timeRange === 'month') {
+        startDate.setDate(1);
+    } else if (timeRange === 'quarter') {
+        const quarter = Math.floor(today.getMonth() / 3);
+        startDate.setMonth(quarter * 3);
+        startDate.setDate(1);
+    }
+
+    Object.keys(checkInData).forEach(key => {
+        const data = checkInData[key];
+        const date = new Date(data.date);
+        if (date >= startDate) {
+            const project = projectsData.find(p => p.id === data.projectId);
+            if (project) {
+                projectStats[project.name]++;
+            }
         }
     });
-    
-    // 更新日常记录和留言
-    renderDailyRecords();
-    renderDailyMessages();
+
+    const ctx = document.getElementById('statsChart');
+    if (!ctx) return;
+
+    if (chart) {
+        chart.destroy();
+    }
+
+    const labels = Object.keys(projectStats);
+    const data = Object.values(projectStats);
+
+    if (chartType === 'pie') {
+        chart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: ['#5DADE2', '#AED6F1', '#D2EAF4', '#A6D3E6', '#FCEAB8', '#F5E3D7']
+                }]
+            },
+            options: {responsive: true, maintainAspectRatio: true}
+        });
+    } else {
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '打卡次数',
+                    data: data,
+                    borderColor: '#5DADE2',
+                    backgroundColor: 'rgba(93, 173, 226, 0.1)',
+                    tension: 0.4
+                }]
+            },
+            options: {responsive: true, maintainAspectRatio: true, scales: {y: {beginAtZero: true}}}
+        });
+    }
 }
 
-function renderDailyRecords() {
-    const records = getDailyRecords(currentDate);
-    const container = document.getElementById('dailyRecords');
-    container.innerHTML = '';
-    
-    if (records.length === 0) {
-        container.innerHTML = '<p style="color: var(--text-light); text-align: center;">暂无记录</p>';
+function sendMessage() {
+    const text = document.getElementById('messageText').value.trim();
+    if (!text) {
+        showNotification('请输入留言内容');
         return;
     }
-    
-    records.forEach(record => {
-        const item = document.createElement('div');
-        item.className = 'record-item';
-        
-        const author = record.user === 'me' ? '我' : '男友';
-        const time = new Date(record.date).toLocaleString('zh-CN');
-        
-        let html = `
-            <p>${record.text}</p>
-            <div class="record-meta">${author} · ${time}</div>
-        `;
-        
-        if (record.image) {
-            html += `<img src="${record.image}" class="record-image" alt="记录图片">`;
-        }
-        
-        item.innerHTML = html;
-        container.appendChild(item);
+
+    const today = new Date().toISOString().split('T')[0];
+    let messagesData = JSON.parse(localStorage.getItem('messagesData') || '{}');
+    if (!messagesData[today]) {
+        messagesData[today] = [];
+    }
+
+    messagesData[today].push({
+        user: currentUser,
+        text: text,
+        time: new Date().toLocaleString(),
+        image: null,
+        replies: [],
+        unread: currentUser !== 'huanghuang'
     });
+
+    localStorage.setItem('messagesData', JSON.stringify(messagesData));
+
+    db.ref(`messages/${today}`).push({
+        user: currentUser,
+        text: text,
+        time: new Date().toLocaleString(),
+        timestamp: new Date().getTime()
+    });
+
+    document.getElementById('messageText').value = '';
+    renderMessagesWall();
+    showNotification('✅ 留言已发送');
 }
 
-function renderDailyMessages() {
-    const messages = getDailyMessages(currentDate);
-    const container = document.getElementById('dailyMessages');
-    container.innerHTML = '';
-    
-    if (messages.length === 0) {
-        container.innerHTML = '<p style="color: var(--text-light); text-align: center;">暂无留言</p>';
+function renderMessagesWall() {
+    let messagesData = JSON.parse(localStorage.getItem('messagesData') || '{}');
+    let html = '';
+
+    const allMessages = [];
+    Object.keys(messagesData).forEach(date => {
+        messagesData[date].forEach((msg, index) => {
+            allMessages.push({...msg, dateIndex: date, msgIndex: index});
+        });
+    });
+
+    allMessages.reverse().forEach((msg, index) => {
+        let repliesHtml = '';
+        if (msg.replies && msg.replies.length > 0) {
+            msg.replies.forEach(reply => {
+                repliesHtml += `
+                    <div class="reply-item">
+                        <div class="reply-header">
+                            <span class="reply-author">${reply.user === 'huanghuang' ? '璠璠' : '渲渲'}</span>
+                            <span class="reply-time">${reply.time}</span>
+                        </div>
+                        <div class="reply-text">${reply.text}</div>
+                    </div>
+                `;
+            });
+        }
+
+        html += `
+            <div class="wall-message ${msg.unread ? 'unread' : ''}">
+                <div class="wall-message-header">
+                    <span class="wall-message-author">${msg.user === 'huanghuang' ? '璠璠' : '渲渲'}</span>
+                    <span class="wall-message-time">${msg.time}</span>
+                </div>
+                <div class="wall-message-text">${msg.text}</div>
+                ${msg.image ? `<img src="${msg.image}" class="wall-message-image">` : ''}
+                <button class="reply-button" onclick="openReplyModalWall(${index})">回复</button>
+                ${repliesHtml ? `<div class="message-replies">${repliesHtml}</div>` : ''}
+            </div>
+        `;
+    });
+
+    if (document.getElementById('messagesWall')) {
+        document.getElementById('messagesWall').innerHTML = html || '<p>暂无留言</p>';
+    }
+}
+
+function markAllMessagesAsRead() {
+    let messagesData = JSON.parse(localStorage.getItem('messagesData') || '{}');
+    Object.keys(messagesData).forEach(date => {
+        messagesData[date].forEach(msg => {
+            msg.unread = false;
+        });
+    });
+    localStorage.setItem('messagesData', JSON.stringify(messagesData));
+    updateUnreadCount();
+}
+
+function updateUnreadCount() {
+    let messagesData = JSON.parse(localStorage.getItem('messagesData') || '{}');
+    let unreadCount = 0;
+    Object.keys(messagesData).forEach(date => {
+        messagesData[date].forEach(msg => {
+            if (msg.unread) {
+                unreadCount++;
+            }
+        });
+    });
+    if (document.getElementById('unreadCount')) {
+        document.getElementById('unreadCount').textContent = unreadCount;
+    }
+}
+
+function addWish() {
+    const wishText = document.getElementById('wishInput').value.trim();
+    if (!wishText) {
+        showNotification('请输入心愿');
         return;
     }
-    
-    messages.forEach(message => {
-        const item = document.createElement('div');
-        item.className = 'message-item' + (message.read ? '' : ' unread');
-        
-        const author = message.user === 'me' ? '我' : '男友';
-        const time = new Date(message.date).toLocaleString('zh-CN');
-        
-        let html = `
-            <p>${message.text}</p>
-            <div class="message-meta">${author} · ${time}</div>
-        `;
-        
-        if (message.image) {
-            html += `<img src="${message.image}" class="message-image" alt="留言图片">`;
-        }
-        
-        item.innerHTML = html;
-        container.appendChild(item);
+
+    let wishData = JSON.parse(localStorage.getItem('wishData') || '[]');
+    wishData.push({
+        id: Date.now(),
+        text: wishText,
+        user: currentUser,
+        completed: false,
+        createdAt: new Date().toLocaleString()
     });
+
+    localStorage.setItem('wishData', JSON.stringify(wishData));
+    document.getElementById('wishInput').value = '';
+    renderWishlist();
+    showNotification('✅ 心愿已添加');
+}
+
+function renderWishlist() {
+    let wishData = JSON.parse(localStorage.getItem('wishData') || '[]');
+    let html = '';
+
+    wishData.forEach(wish => {
+        html += `
+            <div class="wish-item ${wish.completed ? 'completed' : ''}">
+                <input type="checkbox" class="wish-checkbox" ${wish.completed ? 'checked' : ''} onchange="toggleWish(${wish.id})">
+                <div class="wish-text">${wish.text}</div>
+                <div class="wish-author">${wish.user === 'huanghuang' ? '璠璠' : '渲渲'}</div>
+                <button class="wish-delete" onclick="deleteWish(${wish.id})">删除</button>
+            </div>
+        `;
+    });
+
+    if (document.getElementById('wishlistItems')) {
+        document.getElementById('wishlistItems').innerHTML = html || '<p>暂无心愿</p>';
+    }
+}
+
+function toggleWish(id) {
+    let wishData = JSON.parse(localStorage.getItem('wishData') || '[]');
+    const wish = wishData.find(w => w.id === id);
+    if (wish) {
+        wish.completed = !wish.completed;
+        localStorage.setItem('wishData', JSON.stringify(wishData));
+        renderWishlist();
+    }
+}
+
+function deleteWish(id) {
+    if (confirm('确定要删除这个心愿吗？')) {
+        let wishData = JSON.parse(localStorage.getItem('wishData') || '[]');
+        wishData = wishData.filter(w => w.id !== id);
+        localStorage.setItem('wishData', JSON.stringify(wishData));
+        renderWishlist();
+        showNotification('✅ 心愿已删除');
+    }
+}
+
+function renderMissCalendar() {
+    const year = missCalendarDate.getFullYear();
+    const month = missCalendarDate.getMonth();
+
+    if (document.getElementById('missMonthYear')) {
+        document.getElementById('missMonthYear').textContent = `${year}年${month + 1}月`;
+    }
+
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+
+    let html = '';
+
+    const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
+    weekDays.forEach(day => {
+        html += `<div class="calendar-day-header">${day}</div>`;
+    });
+
+    for (let i = 0; i < startingDayOfWeek; i++) {
+        html += '<div class="miss-calendar-day"></div>';
+    }
+
+    let missData = JSON.parse(localStorage.getItem('missData') || '{}');
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month, day);
+        const dateStr = date.toISOString().split('T')[0];
+        const key = `miss_${currentUser}_${dateStr}`;
+        const count = missData[key] ? missData[key].length : 0;
+
+        const hasClass = count > 0 ? 'has-miss' : '';
+        const highClass = count > 10 ? 'high-miss' : '';
+
+        html += `
+            <div class="miss-calendar-day ${hasClass} ${highClass}">
+                <div class="miss-day-number">${day}</div>
+                ${count > 0 ? `<div class="miss-day-count">${count}</div>` : ''}
+            </div>
+        `;
+    }
+
+    if (document.getElementById('missCalendarGrid')) {
+        document.getElementById('missCalendarGrid').innerHTML = html;
+    }
+}
+
+function changeMissMonth(offset) {
+    missCalendarDate.setMonth(missCalendarDate.getMonth() + offset);
+    renderMissCalendar();
+}
+
+function showNotification(message) {
+    const notification = document.getElementById('notification');
+    if (!notification) return;
+    notification.textContent = message;
+    notification.classList.remove('hidden');
+
+    setTimeout(() => {
+        notification.classList.add('hidden');
+    }, 3000);
 }
 
 function showAddRecordModal() {
@@ -369,693 +856,175 @@ function showAddMessageModal() {
     document.getElementById('addMessageModal').classList.add('show');
 }
 
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('show');
+}
+
 function saveRecord() {
     const text = document.getElementById('recordText').value.trim();
     if (!text) {
-        alert('请输入记录内容');
+        showNotification('请输入记录内容');
         return;
     }
-    
-    const records = getDailyRecords(currentDate);
-    records.push({
+
+    const dateStr = selectedDate.toISOString().split('T')[0];
+    let recordsData = JSON.parse(localStorage.getItem('recordsData') || '{}');
+    if (!recordsData[dateStr]) {
+        recordsData[dateStr] = [];
+    }
+
+    recordsData[dateStr].push({
         user: currentUser,
         text: text,
-        date: new Date().toISOString(),
-        image: null,
+        time: new Date().toLocaleString(),
+        image: null
     });
-    
-    saveDailyRecords(currentDate, records);
-    
+
+    localStorage.setItem('recordsData', JSON.stringify(recordsData));
     document.getElementById('recordText').value = '';
     closeModal('addRecordModal');
-    renderDailyRecords();
-    showNotification('记录已保存');
+    loadDailyData();
+    showNotification('✅ 记录已保存');
 }
 
 function saveCalendarMessage() {
     const text = document.getElementById('calendarMessageText').value.trim();
     if (!text) {
-        alert('请输入留言内容');
+        showNotification('请输入留言内容');
         return;
     }
-    
-    const messages = getDailyMessages(currentDate);
-    messages.push({
+
+    const dateStr = selectedDate.toISOString().split('T')[0];
+    let messagesData = JSON.parse(localStorage.getItem('messagesData') || '{}');
+    if (!messagesData[dateStr]) {
+        messagesData[dateStr] = [];
+    }
+
+    messagesData[dateStr].push({
         user: currentUser,
         text: text,
-        date: new Date().toISOString(),
+        time: new Date().toLocaleString(),
         image: null,
-        read: false,
+        replies: []
     });
-    
-    saveDailyMessages(currentDate, messages);
-    
+
+    localStorage.setItem('messagesData', JSON.stringify(messagesData));
     document.getElementById('calendarMessageText').value = '';
     closeModal('addMessageModal');
-    renderDailyMessages();
-    showNotification('留言已保存');
+    loadDailyData();
+    showNotification('✅ 留言已发送');
 }
 
-// ===== 打卡功能 =====
-function renderCheckInTimeline() {
-    const checkIns = getCheckIns();
-    const container = document.getElementById('checkInTimeline');
-    container.innerHTML = '';
+function openReplyModal(index, dateStr) {
+    let messagesData = JSON.parse(localStorage.getItem('messagesData') || '{}');
+    const message = messagesData[dateStr][index];
     
-    if (checkIns.length === 0) {
-        container.innerHTML = '<p style="color: var(--text-light); text-align: center;">暂无打卡记录</p>';
-        return;
-    }
-    
-    // 按时间倒序排列
-    checkIns.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
-    
-    checkIns.forEach((checkIn, index) => {
-        const item = document.createElement('div');
-        item.className = 'timeline-item';
-        
-        const author = checkIn.user === 'me' ? '👩' : '👨';
-        const startTime = new Date(checkIn.startTime).toLocaleString('zh-CN');
-        const endTime = new Date(checkIn.endTime).toLocaleString('zh-CN');
-        
-        let html = `
-            <div class="timeline-marker">${index + 1}</div>
-            <div class="timeline-content">
-                <h4>${checkIn.project}</h4>
-                <div class="timeline-time">
-                    ${author} ${startTime} ~ ${endTime}
-                </div>
+    if (document.getElementById('replyOriginalMessage')) {
+        document.getElementById('replyOriginalMessage').innerHTML = `
+            <strong>${message.user === 'huanghuang' ? '璠璠' : '渲渲'}</strong>: ${message.text}
         `;
-        
-        if (checkIn.note) {
-            html += `<div class="timeline-note">${checkIn.note}</div>`;
-        }
-        
-        if (checkIn.image) {
-            html += `<img src="${checkIn.image}" class="timeline-image" alt="打卡图片">`;
-        }
-        
-        html += '</div>';
-        
-        item.innerHTML = html;
-        container.appendChild(item);
-    });
-    
-    // 更新项目选择器
-    updateCheckInProjectSelector();
-}
-
-function updateCheckInProjectSelector() {
-    const selector = document.getElementById('checkInProject');
-    selector.innerHTML = '<option value="">选择打卡项目</option>';
-    
-    CONFIG.checkInProjects.forEach(project => {
-        const option = document.createElement('option');
-        option.value = project;
-        option.textContent = project;
-        selector.appendChild(option);
-    });
-}
-
-function addCheckInProject() {
-    const input = document.getElementById('checkInProjectInput');
-    const project = input.value.trim();
-    
-    if (!project) {
-        alert('请输入项目名称');
-        return;
     }
     
-    if (!CONFIG.checkInProjects.includes(project)) {
-        CONFIG.checkInProjects.push(project);
-        localStorage.setItem('checkInProjects', JSON.stringify(CONFIG.checkInProjects));
-        input.value = '';
-        updateCheckInProjectSelector();
-        showNotification('项目已添加');
-    } else {
-        alert('项目已存在');
-    }
+    document.getElementById('replyModal').dataset.dateStr = dateStr;
+    document.getElementById('replyModal').dataset.msgIndex = index;
+    document.getElementById('replyModal').classList.add('show');
 }
 
-function showAddCheckInModal() {
-    document.getElementById('addCheckInModal').classList.add('show');
-    updateCheckInProjectSelector();
+function openReplyModalWall(index) {
+    showNotification('回复功能开发中');
 }
 
-function saveCheckIn() {
-    const project = document.getElementById('checkInProject').value;
-    const startTime = document.getElementById('checkInStart').value;
-    const endTime = document.getElementById('checkInEnd').value;
-    const note = document.getElementById('checkInNote').value.trim();
-    
-    if (!project || !startTime || !endTime) {
-        alert('请填写必要信息');
-        return;
-    }
-    
-    const checkIns = getCheckIns();
-    checkIns.push({
-        user: currentUser,
-        project: project,
-        startTime: new Date(startTime).toISOString(),
-        endTime: new Date(endTime).toISOString(),
-        note: note,
-        image: null,
-        date: new Date().toISOString(),
-    });
-    
-    localStorage.setItem('checkIns', JSON.stringify(checkIns));
-    
-    document.getElementById('checkInProject').value = '';
-    document.getElementById('checkInStart').value = '';
-    document.getElementById('checkInEnd').value = '';
-    document.getElementById('checkInNote').value = '';
-    
-    closeModal('addCheckInModal');
-    renderCheckInTimeline();
-    showNotification('打卡已保存');
-}
-
-// ===== 留言墙功能 =====
-function renderMessagesWall() {
-    const messages = getMessages();
-    const container = document.getElementById('messagesWall');
-    container.innerHTML = '';
-    
-    if (messages.length === 0) {
-        container.innerHTML = '<p style="color: var(--text-light); text-align: center;">暂无留言</p>';
-        return;
-    }
-    
-    // 按时间倒序排列
-    messages.sort((a, b) => new Date(b.date) - new Date(a.date));
-    
-    messages.forEach(message => {
-        const item = document.createElement('div');
-        item.className = 'wall-message' + (message.read ? '' : ' unread');
-        
-        const author = message.user === 'me' ? '我' : '男友';
-        const time = new Date(message.date).toLocaleString('zh-CN');
-        
-        let html = `
-            <div class="wall-message-header">
-                <span class="wall-message-author">${author}</span>
-                <span class="wall-message-time">${time}</span>
-            </div>
-            <div class="wall-message-text">${message.text}</div>
-        `;
-        
-        if (message.image) {
-            html += `<img src="${message.image}" class="wall-message-image" alt="留言图片">`;
-        }
-        
-        item.innerHTML = html;
-        container.appendChild(item);
-    });
-}
-
-function sendMessage() {
-    const text = document.getElementById('messageText').value.trim();
+function saveReply() {
+    const text = document.getElementById('replyText').value.trim();
     if (!text) {
-        alert('请输入留言内容');
+        showNotification('请输入回复内容');
         return;
     }
-    
-    const messages = getMessages();
-    messages.push({
+
+    const dateStr = document.getElementById('replyModal').dataset.dateStr;
+    const msgIndex = document.getElementById('replyModal').dataset.msgIndex;
+
+    let messagesData = JSON.parse(localStorage.getItem('messagesData') || '{}');
+    if (!messagesData[dateStr][msgIndex].replies) {
+        messagesData[dateStr][msgIndex].replies = [];
+    }
+
+    messagesData[dateStr][msgIndex].replies.push({
         user: currentUser,
         text: text,
-        date: new Date().toISOString(),
-        image: null,
-        read: false,
+        time: new Date().toLocaleString()
     });
-    
-    localStorage.setItem('messages', JSON.stringify(messages));
-    
-    document.getElementById('messageText').value = '';
+
+    localStorage.setItem('messagesData', JSON.stringify(messagesData));
+    document.getElementById('replyText').value = '';
+    closeModal('replyModal');
+    loadDailyData();
     renderMessagesWall();
-    updateUnreadCount();
-    showNotification('留言已发送');
+    showNotification('✅ 回复已发送');
 }
 
-function markMessagesAsRead() {
-    const messages = getMessages();
-    messages.forEach(message => {
-        message.read = true;
-    });
-    localStorage.setItem('messages', JSON.stringify(messages));
-    updateUnreadCount();
-}
-
-// ===== 心愿清单功能 =====
-function renderWishlist() {
-    const wishes = getWishes();
-    const container = document.getElementById('wishlistItems');
-    container.innerHTML = '';
-    
-    if (wishes.length === 0) {
-        container.innerHTML = '<p style="color: var(--text-light); text-align: center;">暂无心愿</p>';
-        return;
-    }
-    
-    wishes.forEach((wish, index) => {
-        const item = document.createElement('div');
-        item.className = 'wish-item' + (wish.completed ? ' completed' : '');
-        
-        const author = wish.user === 'me' ? '我' : '男友';
-        
-        const html = `
-            <input type="checkbox" class="wish-checkbox" ${wish.completed ? 'checked' : ''} 
-                   onchange="toggleWish(${index})">
-            <span class="wish-text">${wish.text}</span>
-            <span class="wish-author">${author}</span>
-            <button class="wish-delete" onclick="deleteWish(${index})">删除</button>
-        `;
-        
-        item.innerHTML = html;
-        container.appendChild(item);
-    });
-}
-
-function addWish() {
-    const input = document.getElementById('wishInput');
-    const text = input.value.trim();
-    
-    if (!text) {
-        alert('请输入心愿');
-        return;
-    }
-    
-    const wishes = getWishes();
-    wishes.push({
-        user: currentUser,
-        text: text,
-        completed: false,
-        date: new Date().toISOString(),
-    });
-    
-    localStorage.setItem('wishes', JSON.stringify(wishes));
-    input.value = '';
-    renderWishlist();
-    showNotification('心愿已添加');
-}
-
-function toggleWish(index) {
-    const wishes = getWishes();
-    wishes[index].completed = !wishes[index].completed;
-    localStorage.setItem('wishes', JSON.stringify(wishes));
-    renderWishlist();
-}
-
-function deleteWish(index) {
-    if (confirm('确定删除这个心愿吗？')) {
-        const wishes = getWishes();
-        wishes.splice(index, 1);
-        localStorage.setItem('wishes', JSON.stringify(wishes));
-        renderWishlist();
-        showNotification('心愿已删除');
-    }
-}
-
-// ===== 我想你功能 =====
-function renderMissHistory() {
-    const records = getMissYouRecords();
-    const container = document.getElementById('missHistory');
-    container.innerHTML = '';
-    
-    if (records.length === 0) {
-        container.innerHTML = '<p style="color: var(--text-light); text-align: center;">暂无想念记录</p>';
-        return;
-    }
-    
-    // 按时间倒序排列
-    records.sort((a, b) => new Date(b.date) - new Date(a.date));
-    
-    records.forEach(record => {
-        const item = document.createElement('div');
-        item.className = 'miss-record';
-        
-        const author = record.user === 'me' ? '我' : '男友';
-        const time = new Date(record.date).toLocaleString('zh-CN');
-        
-        item.innerHTML = `
-            <div>
-                <span class="miss-record-user">${author}</span>
-                <span class="miss-record-time">${time}</span>
-            </div>
-        `;
-        
-        container.appendChild(item);
-    });
-    
-    // 更新统计信息
-    document.getElementById('missStatsTotal').textContent = records.length;
-    
-    if (records.length > 0) {
-        const lastTime = new Date(records[0].date).toLocaleString('zh-CN');
-        document.getElementById('missStatsLast').textContent = lastTime;
-    }
-}
-
-// ===== 统计图表功能 =====
-function updateChart() {
-    const timeRange = document.getElementById('timeRange').value;
-    const chartType = document.getElementById('chartType').value;
-    
-    const checkIns = getCheckIns();
-    let data = {};
-    
-    if (chartType === 'pie') {
-        // 饼状图：各项目占比
-        checkIns.forEach(checkIn => {
-            data[checkIn.project] = (data[checkIn.project] || 0) + 1;
-        });
-        drawPieChart(data);
-    } else {
-        // 折线图：每日打卡次数
-        data = getCheckInsByTimeRange(timeRange);
-        drawLineChart(data);
-    }
-}
-
-function getCheckInsByTimeRange(timeRange) {
-    const checkIns = getCheckIns();
-    const data = {};
-    
-    checkIns.forEach(checkIn => {
-        const date = new Date(checkIn.startTime);
-        let key = '';
-        
-        if (timeRange === 'week') {
-            // 获取周一到周日
-            const d = new Date(date);
-            const day = d.getDay();
-            const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-            const monday = new Date(d.setDate(diff));
-            key = monday.toLocaleDateString('zh-CN');
-        } else if (timeRange === 'month') {
-            key = date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
-        } else if (timeRange === 'quarter') {
-            const quarter = Math.ceil((date.getMonth() + 1) / 3);
-            key = `Q${quarter}`;
-        }
-        
-        data[key] = (data[key] || 0) + 1;
-    });
-    
-    return data;
-}
-
-function drawPieChart(data) {
-    const ctx = document.getElementById('statsChart').getContext('2d');
-    
-    if (chart) {
-        chart.destroy();
-    }
-    
-    chart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: Object.keys(data),
-            datasets: [{
-                data: Object.values(data),
-                backgroundColor: [
-                    '#5DADE2',
-                    '#AED6F1',
-                    '#85C1E2',
-                    '#52C41A',
-                    '#FAAD14',
-                    '#F5222D',
-                ],
-                borderColor: '#FFFFFF',
-                borderWidth: 2,
-            }],
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                },
-            },
-        },
-    });
-}
-
-function drawLineChart(data) {
-    const ctx = document.getElementById('statsChart').getContext('2d');
-    
-    if (chart) {
-        chart.destroy();
-    }
-    
-    chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: Object.keys(data),
-            datasets: [{
-                label: '打卡次数',
-                data: Object.values(data),
-                borderColor: '#5DADE2',
-                backgroundColor: 'rgba(93, 173, 226, 0.1)',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.4,
-                pointBackgroundColor: '#5DADE2',
-                pointBorderColor: '#FFFFFF',
-                pointBorderWidth: 2,
-                pointRadius: 5,
-            }],
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: true,
-                },
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        stepSize: 1,
-                    },
-                },
-            },
-        },
-    });
-}
-
-// ===== 数据管理 =====
-function getDailyRecords(date) {
-    const key = `records_${date.toDateString()}`;
-    const data = localStorage.getItem(key);
-    return data ? JSON.parse(data) : [];
-}
-
-function saveDailyRecords(date, records) {
-    const key = `records_${date.toDateString()}`;
-    localStorage.setItem(key, JSON.stringify(records));
-}
-
-function getDailyMessages(date) {
-    const key = `messages_${date.toDateString()}`;
-    const data = localStorage.getItem(key);
-    return data ? JSON.parse(data) : [];
-}
-
-function saveDailyMessages(date, messages) {
-    const key = `messages_${date.toDateString()}`;
-    localStorage.setItem(key, JSON.stringify(messages));
-}
-
-function getMessages() {
-    const data = localStorage.getItem('messages');
-    return data ? JSON.parse(data) : [];
-}
-
-function getCheckIns() {
-    const data = localStorage.getItem('checkIns');
-    return data ? JSON.parse(data) : [];
-}
-
-function getWishes() {
-    const data = localStorage.getItem('wishes');
-    return data ? JSON.parse(data) : [];
-}
-
-function getMissYouRecords() {
-    const data = localStorage.getItem('missYouRecords');
-    return data ? JSON.parse(data) : [];
-}
-
-// ===== 日期配置 =====
-function loadDateConfig() {
-    const togetherDate = localStorage.getItem('togetherDate');
-    const examDate = localStorage.getItem('examDate');
-    
-    if (togetherDate) {
-        CONFIG.togetherDate = new Date(togetherDate);
-        document.getElementById('togetherDate').value = togetherDate.split('T')[0];
-    } else {
-        document.getElementById('togetherDate').value = CONFIG.togetherDate.toISOString().split('T')[0];
-    }
-    
-    if (examDate) {
-        CONFIG.examDate = new Date(examDate);
-        document.getElementById('examDate').value = examDate.split('T')[0];
-    } else {
-        document.getElementById('examDate').value = CONFIG.examDate.toISOString().split('T')[0];
-    }
-}
-
-function updateTogetherDate() {
-    const date = document.getElementById('togetherDate').value;
-    if (date) {
-        CONFIG.togetherDate = new Date(date);
-        localStorage.setItem('togetherDate', new Date(date).toISOString());
-        updateCountdown();
-        showNotification('在一起的日期已更新');
-    }
-}
-
-function updateExamDate() {
-    const date = document.getElementById('examDate').value;
-    if (date) {
-        CONFIG.examDate = new Date(date);
-        localStorage.setItem('examDate', new Date(date).toISOString());
-        updateExamCountdown();
-        showNotification('考研日期已更新');
-    }
-}
-
-// ===== 数据导出导入 =====
 function exportData() {
-    const allData = {
-        currentUser: localStorage.getItem('currentUser'),
-        togetherDate: localStorage.getItem('togetherDate'),
-        examDate: localStorage.getItem('examDate'),
-        messages: localStorage.getItem('messages'),
-        checkIns: localStorage.getItem('checkIns'),
-        wishes: localStorage.getItem('wishes'),
-        missYouRecords: localStorage.getItem('missYouRecords'),
+    const data = {
+        messagesData: localStorage.getItem('messagesData'),
+        recordsData: localStorage.getItem('recordsData'),
+        wishData: localStorage.getItem('wishData'),
+        checkInData: localStorage.getItem('checkInData'),
         checkInProjects: localStorage.getItem('checkInProjects'),
+        missData: localStorage.getItem('missData')
     };
-    
-    // 导出所有日期的记录
-    for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key.startsWith('records_') || key.startsWith('messages_')) {
-            allData[key] = localStorage.getItem(key);
-        }
-    }
-    
-    const dataStr = JSON.stringify(allData, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+
+    const dataStr = JSON.stringify(data, null, 2);
+    const dataBlob = new Blob([dataStr], {type: 'application/json'});
     const url = URL.createObjectURL(dataBlob);
-    
     const link = document.createElement('a');
     link.href = url;
-    link.download = `我们的日常_${new Date().toISOString().split('T')[0]}.json`;
+    link.download = `我们的故事_${new Date().toISOString().split('T')[0]}.json`;
     link.click();
-    
-    URL.revokeObjectURL(url);
-    showNotification('数据已导出');
+    showNotification('✅ 数据已导出');
 }
 
 function importData() {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
-    
     input.onchange = function(e) {
         const file = e.target.files[0];
         const reader = new FileReader();
-        
         reader.onload = function(event) {
             try {
                 const data = JSON.parse(event.target.result);
-                
-                // 清空现有数据
-                localStorage.clear();
-                
-                // 导入数据
                 Object.keys(data).forEach(key => {
                     if (data[key]) {
                         localStorage.setItem(key, data[key]);
                     }
                 });
-                
-                showNotification('数据已导入，页面将刷新');
-                setTimeout(() => {
-                    location.reload();
-                }, 1000);
+                showNotification('✅ 数据已导入');
+                loadAllData();
             } catch (error) {
-                alert('数据导入失败，请检查文件格式');
+                showNotification('❌ 导入失败');
             }
         };
-        
         reader.readAsText(file);
     };
-    
     input.click();
 }
 
 function clearAllData() {
     if (confirm('确定要清空所有数据吗？此操作不可撤销！')) {
-        localStorage.clear();
-        location.reload();
+        localStorage.removeItem('messagesData');
+        localStorage.removeItem('recordsData');
+        localStorage.removeItem('wishData');
+        localStorage.removeItem('checkInData');
+        localStorage.removeItem('checkInProjects');
+        localStorage.removeItem('missData');
+        showNotification('✅ 数据已清空');
+        loadAllData();
     }
 }
 
-// ===== 工具函数 =====
-function closeModal(modalId) {
-    const modal = document.getElementById(modalId);
-    modal.classList.remove('show');
+function loadAllData() {
+    updateCountdowns();
+    updateMissStats();
+    renderWishlist();
+    updateUnreadCount();
 }
-
-function showNotification(message) {
-    // 创建通知元素
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background-color: var(--primary-blue);
-        color: white;
-        padding: 1rem 1.5rem;
-        border-radius: 6px;
-        box-shadow: 0 4px 12px rgba(93, 173, 226, 0.3);
-        z-index: 10000;
-        animation: slideUp 0.3s ease;
-    `;
-    notification.textContent = message;
-    
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        notification.style.animation = 'fadeOut 0.3s ease';
-        setTimeout(() => {
-            notification.remove();
-        }, 300);
-    }, 2000);
-}
-
-// 添加淡出动画
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes fadeOut {
-        from {
-            opacity: 1;
-        }
-        to {
-            opacity: 0;
-        }
-    }
-`;
-document.head.appendChild(style);
-
-// ===== 页面加载完成 =====
-console.log('异地恋日常分享网站已加载');
