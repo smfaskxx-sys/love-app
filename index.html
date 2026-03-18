@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>💕 我们的故事 - 异地恋日常分享</title>
+    <title>💕 专为宝宝打造 - 史诗级巨制</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
@@ -13,15 +13,15 @@
     <!-- 登录模态框 -->
     <div id="loginModal" class="modal">
         <div class="modal-content login-modal">
-            <h1>💕 我们的故事</h1>
+            <h1>💕 么么</h1>
             <p>选择您的身份</p>
             <div class="identity-buttons">
                 <button class="identity-btn" data-user="huanghuang">
-                    <span class="emoji">👩</span>
+                    <span class="emoji">😸</span>
                     <span>璠璠</span>
                 </button>
                 <button class="identity-btn" data-user="xuanxuan">
-                    <span class="emoji">👨</span>
+                    <span class="emoji">😽</span>
                     <span>渲渲</span>
                 </button>
             </div>
@@ -33,7 +33,7 @@
         <!-- 导航栏 -->
         <nav class="navbar">
             <div class="nav-container">
-                <div class="nav-logo">💕 我们的故事</div>
+                <div class="nav-logo">💕 么么</div>
                 <button id="hamburger" class="hamburger">
                     <span></span>
                     <span></span>
@@ -67,6 +67,15 @@
                 </div>
 
                 <div class="home-content">
+                    <!-- 用户头像和信息 -->
+                    <div class="user-profile">
+                        <div class="user-avatar" id="userAvatarDisplay">💕</div>
+                        <div class="user-info">
+                            <div class="user-name" id="userNameDisplay">璠璠</div>
+                            <div class="user-status">今天也要加油哦！</div>
+                        </div>
+                    </div>
+
                     <!-- 倒计时卡片 -->
                     <div class="card countdown-card">
                         <div class="card-icon">❤️</div>
@@ -153,7 +162,7 @@
                         <h2>打卡项目</h2>
                         <div class="project-input">
                             <input type="text" id="projectInput" placeholder="输入新的打卡项目...">
-                            <button onclick="addCheckInProject()" class="btn-primary">添加项目</button>
+                            <button onclick="addCheckInProject()" class="btn-primary">开始打卡</button>
                         </div>
                         <div id="checkInProjects" class="projects-grid"></div>
                     </div>
@@ -178,7 +187,9 @@
                                 <option value="line">折线图</option>
                             </select>
                         </div>
-                        <canvas id="statsChart"></canvas>
+                        <div style="max-height: 300px; overflow-y: auto;">
+                            <canvas id="statsChart"></canvas>
+                        </div>
                     </div>
                 </div>
             </div>
