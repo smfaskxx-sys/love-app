@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我们的日常 - 异地恋分享网站</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">💕 我们的日常</div>
+            <ul class="nav-menu">
+                <li><a href="#home" class="nav-link active" data-page="home">首页</a></li>
+                <li><a href="#calendar" class="nav-link" data-page="calendar">日历</a></li>
+                <li><a href="#room" class="nav-link" data-page="room">我们的房间</a></li>
+                <li><a href="#messages" class="nav-link" data-page="messages">留言墙</a></li>
+                <li><a href="#wishlist" class="nav-link" data-page="wishlist">心愿清单</a></li>
+                <li><a href="#miss" class="nav-link" data-page="miss">我想你</a></li>
+                <li><a href="#stats" class="nav-link" data-page="stats">统计图表</a></li>
+                <li><a href="#settings" class="nav-link" data-page="settings">设置</a></li>
+            </ul>
+            <div class="user-info">
+                <span id="currentUser">未登录</span>
+                <button id="switchUserBtn" class="btn-small">切换身份</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 登录弹窗 -->
+    <div id="loginModal" class="modal">
+        <div class="modal-content">
+            <h2>选择身份</h2>
+            <div class="identity-buttons">
+                <button class="btn-primary" data-user="me">👩 我</button>
+                <button class="btn-primary" data-user="bf">👨 男友</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主容器 -->
+    <div class="container">
+        <!-- 首页 -->
+        <section id="home" class="page active">
+            <div class="home-container">
+                <div class="greeting">
+                    <h1>欢迎回来，<span id="greetingName">亲爱的</span>💕</h1>
+                </div>
+
+                <div class="home-grid">
+                    <!-- 未读提醒 -->
+                    <div class="card">
+                        <h3>📬 未读提醒</h3>
+                        <div class="unread-count">
+                            <span id="unreadCount">0</span>
+                            <p>条未读留言</p>
+                        </div>
+                        <button class="btn-primary" onclick="switchPage('messages')">查看留言</button>
+                    </div>
+
+                    <!-- 正计时 -->
+                    <div class="card">
+                        <h3>⏱️ 我们在一起</h3>
+                        <div class="countdown">
+                            <div class="time-value" id="togetherDays">0</div>
+                            <p>天</p>
+                        </div>
+                        <p class="time-label">从 2023.6.21 开始</p>
+                    </div>
+
+                    <!-- 倒计时 -->
+                    <div class="card">
+                        <h3>📚 距离考研</h3>
+                        <div class="countdown">
+                            <div class="time-value" id="examDays">0</div>
+                            <p>天</p>
+                        </div>
+                        <p class="time-label">2026.12.20</p>
+                    </div>
+
+                    <!-- 我想你了按钮 -->
+                    <div class="card">
+                        <h3>💭 我想你了</h3>
+                        <button class="btn-miss" id="missYouBtn">❤️ 我想你了</button>
+                        <p class="miss-count">今天已点击 <span id="todayMissCount">0</span> 次</p>
+                        <p class="miss-total">总共想念 <span id="totalMissCount">0</span> 次</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 日历视图 -->
+        <section id="calendar" class="page">
+            <div class="calendar-container">
+                <div class="calendar-header">
+                    <button id="prevMonth" class="btn-small">◀</button>
+                    <h2 id="monthYear"></h2>
+                    <button id="nextMonth" class="btn-small">▶</button>
+                </div>
+
+                <div class="calendar-grid" id="calendarGrid"></div>
+
+                <div class="calendar-content">
+                    <div class="daily-records">
+                        <h3>📝 日常记录</h3>
+                        <div id="dailyRecords" class="records-list"></div>
+                        <button class="btn-primary" onclick="showAddRecordModal()">+ 添加记录</button>
+                    </div>
+
+                    <div class="daily-messages">
+                        <h3>💬 当日留言</h3>
+                        <div id="dailyMessages" class="messages-list"></div>
+                        <button class="btn-primary" onclick="showAddMessageModal()">+ 留言</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 打卡板块 - 我们的房间 -->
+        <section id="room" class="page">
+            <div class="room-container">
+                <h2>🏠 我们的房间</h2>
+                
+                <div class="room-controls">
+                    <button class="btn-primary" onclick="showAddCheckInModal()">+ 新建打卡项目</button>
+                    <input type="text" id="checkInProjectInput" placeholder="输入打卡项目名称" class="input-field">
+                    <button class="btn-secondary" onclick="addCheckInProject()">添加项目</button>
+                </div>
+
+                <div class="room-timeline" id="checkInTimeline"></div>
+            </div>
+        </section>
+
+        <!-- 留言墙 -->
+        <section id="messages" class="page">
+            <div class="messages-container">
+                <h2>💌 留言墙</h2>
+                
+                <div class="message-input-area">
+                    <textarea id="messageText" placeholder="写下你想说的话..." class="textarea-field"></textarea>
+                    <div class="message-actions">
+                        <input type="file" id="messageImageInput" accept="image/*" class="file-input">
+                        <button class="btn-primary" onclick="sendMessage()">发送留言</button>
+                    </div>
+                </div>
+
+                <div class="messages-wall" id="messagesWall"></div>
+            </div>
+        </section>
+
+        <!-- 心愿清单 -->
+        <section id="wishlist" class="page">
+            <div class="wishlist-container">
+                <h2>🎁 心愿清单</h2>
+                
+                <div class="wishlist-input">
+                    <input type="text" id="wishInput" placeholder="输入新的心愿..." class="input-field">
+                    <button class="btn-primary" onclick="addWish()">+ 添加心愿</button>
+                </div>
+
+                <div class="wishlist-items" id="wishlistItems"></div>
+            </div>
+        </section>
+
+        <!-- 我想你 -->
+        <section id="miss" class="page">
+            <div class="miss-container">
+                <h2>💕 我想你</h2>
+                
+                <div class="miss-stats">
+                    <div class="stat-card">
+                        <p>总共想念</p>
+                        <div class="stat-value" id="missStatsTotal">0</div>
+                        <p>次</p>
+                    </div>
+                    <div class="stat-card">
+                        <p>最后想念</p>
+                        <div class="stat-time" id="missStatsLast">从未</div>
+                    </div>
+                </div>
+
+                <div class="miss-history" id="missHistory"></div>
+            </div>
+        </section>
+
+        <!-- 统计图表 -->
+        <section id="stats" class="page">
+            <div class="stats-container">
+                <h2>📊 统计图表</h2>
+                
+                <div class="stats-controls">
+                    <div class="control-group">
+                        <label>时间范围：</label>
+                        <select id="timeRange" onchange="updateChart()">
+                            <option value="week">周</option>
+                            <option value="month">月</option>
+                            <option value="quarter">季度</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>图表类型：</label>
+                        <select id="chartType" onchange="updateChart()">
+                            <option value="pie">饼状图</option>
+                            <option value="line">折线图</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="statsChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- 设置 -->
+        <section id="settings" class="page">
+            <div class="settings-container">
+                <h2>⚙️ 设置</h2>
+                
+                <div class="settings-group">
+                    <h3>日期配置</h3>
+                    <div class="setting-item">
+                        <label>在一起的日期：</label>
+                        <input type="date" id="togetherDate" class="input-field">
+                        <button class="btn-secondary" onclick="updateTogetherDate()">保存</button>
+                    </div>
+                    <div class="setting-item">
+                        <label>考研日期：</label>
+                        <input type="date" id="examDate" class="input-field">
+                        <button class="btn-secondary" onclick="updateExamDate()">保存</button>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <h3>数据管理</h3>
+                    <button class="btn-secondary" onclick="exportData()">📥 导出数据</button>
+                    <button class="btn-secondary" onclick="importData()">📤 导入数据</button>
+                    <button class="btn-danger" onclick="clearAllData()">🗑️ 清空所有数据</button>
+                </div>
+
+                <div class="settings-group">
+                    <h3>关于</h3>
+                    <p>我们的日常 v1.0</p>
+                    <p>为异地恋情侣设计的日常分享网站</p>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- 添加记录弹窗 -->
+    <div id="addRecordModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('addRecordModal')">&times;</span>
+            <h2>添加日常记录</h2>
+            <textarea id="recordText" placeholder="记录你的日常..." class="textarea-field"></textarea>
+            <input type="file" id="recordImageInput" accept="image/*" class="file-input">
+            <button class="btn-primary" onclick="saveRecord()">保存记录</button>
+        </div>
+    </div>
+
+    <!-- 添加留言弹窗 -->
+    <div id="addMessageModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('addMessageModal')">&times;</span>
+            <h2>添加留言</h2>
+            <textarea id="calendarMessageText" placeholder="写下你想说的话..." class="textarea-field"></textarea>
+            <input type="file" id="calendarMessageImageInput" accept="image/*" class="file-input">
+            <button class="btn-primary" onclick="saveCalendarMessage()">保存留言</button>
+        </div>
+    </div>
+
+    <!-- 添加打卡弹窗 -->
+    <div id="addCheckInModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('addCheckInModal')">&times;</span>
+            <h2>添加打卡</h2>
+            <select id="checkInProject" class="input-field">
+                <option value="">选择打卡项目</option>
+            </select>
+            <input type="datetime-local" id="checkInStart" class="input-field">
+            <input type="datetime-local" id="checkInEnd" class="input-field">
+            <textarea id="checkInNote" placeholder="添加备注（可选）..." class="textarea-field"></textarea>
+            <input type="file" id="checkInImageInput" accept="image/*" class="file-input">
+            <button class="btn-primary" onclick="saveCheckIn()">保存打卡</button>
+        </div>
+    </div>
+
+    <!-- 图片上传输入（隐藏） -->
+    <input type="file" id="hiddenImageInput" accept="image/*" style="display: none;">
+
+    <script src="script.js"></script>
+</body>
+</html>
