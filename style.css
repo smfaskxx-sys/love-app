@@ -1,1308 +1,1224 @@
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+// ===== Firebase 配置 =====
+const firebaseConfig = {
+  apiKey: "AIzaSyAv4cVMOGAUHa1km02eLL0VfG8UHCdzELo",
+  authDomain: "love-app-12345.firebaseapp.com",
+  databaseURL: "https://love-app-12345-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "love-app-12345",
+  storageBucket: "love-app-12345.firebasestorage.app",
+  messagingSenderId: "769508228824",
+  appId: "1:769508228824:web:cebfea9f5ab96ea4e761ad",
+  measurementId: "G-TJH5NKEL9Q"
+};
 
-:root {
-    --primary-blue: #5DADE2;
-    --light-blue: #AED6F1;
-    --pale-blue: #D2EAF4;
-    --soft-blue: #A6D3E6;
-    --cream: #FCEAB8;
-    --light-cream: #FEFFFF;
-    --beige: #F5E3D7;
-    --pale-pink: #fdcbf1;
-    --light-pink: #e6dee9;
-    --white: #FFFFFF;
-    --gray: #F8F9FA;
-    --dark-gray: #6C757D;
-    --border-color: #E0E0E0;
-}
+// 初始化 Firebase
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
 
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    background: linear-gradient(120deg, #a1c4fd 0%, #c2e9fb 100%);
-    min-height: 100vh;
-    color: #333;
-}
+// ===== 配置参数 =====
+const CONFIG = {
+    togetherDate: new Date('2023-06-21'),
+    examDate: new Date('2026-12-20'),
+    checkInProjects: ['学习', '运动', '陪伴', '约会', '做饭', '休息'],
+};
 
-/* ===== 导航栏 ===== */
-.navbar {
-    background: var(--white);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    padding: 1rem 2rem;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
+// ===== 全局变量 =====
+let currentUser = null;
+let currentDate = new Date();
+let chart = null;
+let isOnline = true;
 
-.navbar-left {
-    flex: 1;
-}
+// ===== 初始化 =====
+document.addEventListener('DOMContentLoaded', function() {
+    initializeApp();
+});
 
-.app-title {
-    font-size: 1.5rem;
-    color: var(--primary-blue);
-    font-weight: 600;
-}
-
-.navbar-center {
-    flex: 2;
-    display: flex;
-    justify-content: center;
-}
-
-.nav-menu {
-    list-style: none;
-    display: flex;
-    gap: 2rem;
-}
-
-.nav-link {
-    text-decoration: none;
-    color: var(--dark-gray);
-    font-weight: 500;
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
-    transition: all 0.3s ease;
-}
-
-.nav-link:hover,
-.nav-link.active {
-    color: var(--primary-blue);
-    background: rgba(93, 173, 226, 0.1);
-}
-
-.navbar-right {
-    flex: 1;
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 1rem;
-}
-
-.user-name {
-    font-weight: 600;
-    color: var(--primary-blue);
-}
-
-.btn-switch-user {
-    background: var(--primary-blue);
-    color: white;
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.btn-switch-user:hover {
-    background: var(--light-blue);
-    transform: translateY(-2px);
-}
-
-.hamburger {
-    display: none;
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    cursor: pointer;
-    color: var(--primary-blue);
-}
-
-/* ===== 模态框 ===== */
-.modal {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 1000;
-    justify-content: center;
-    align-items: center;
-}
-
-.modal.show {
-    display: flex;
-}
-
-.modal-content {
-    background: var(--white);
-    padding: 2rem;
-    border-radius: 12px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-    max-width: 500px;
-    width: 90%;
-    animation: slideIn 0.3s ease;
-}
-
-@keyframes slideIn {
-    from {
-        transform: translateY(-50px);
-        opacity: 0;
+function initializeApp() {
+    // 检查用户登录状态
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+        currentUser = savedUser;
+        showMainApp();
+    } else {
+        showLoginModal();
     }
-    to {
-        transform: translateY(0);
-        opacity: 1;
+
+    // 绑定事件
+    bindEvents();
+    
+    // 初始化日期
+    loadDateConfig();
+    
+    // 更新首页数据
+    updateHomePage();
+    
+    // 监听网络状态
+    window.addEventListener('online', () => {
+        isOnline = true;
+        showNotification('已连接到网络 ✅');
+        syncDataWithFirebase();
+    });
+    
+    window.addEventListener('offline', () => {
+        isOnline = false;
+        showNotification('离线模式 ⚠️');
+    });
+}
+
+function bindEvents() {
+    // 导航栏链接
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const page = this.dataset.page;
+            switchPage(page);
+        });
+    });
+
+    // 切换身份按钮
+    document.getElementById('switchUserBtn').addEventListener('click', function() {
+        showLoginModal();
+    });
+
+    // 登录按钮
+    document.querySelectorAll('[data-user]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            currentUser = this.dataset.user;
+            localStorage.setItem('currentUser', currentUser);
+            closeModal('loginModal');
+            showMainApp();
+        });
+    });
+
+    // 日历导航
+    document.getElementById('prevMonth').addEventListener('click', previousMonth);
+    document.getElementById('nextMonth').addEventListener('click', nextMonth);
+
+    // 我想你了按钮
+    document.getElementById('missYouBtn').addEventListener('click', recordMissYou);
+
+    // 日期配置
+    document.getElementById('togetherDate').addEventListener('change', updateTogetherDate);
+    document.getElementById('examDate').addEventListener('change', updateExamDate);
+
+    // 初始化日历
+    renderCalendar();
+}
+
+// ===== 用户管理 =====
+function showLoginModal() {
+    const modal = document.getElementById('loginModal');
+    modal.classList.add('show');
+}
+
+function showMainApp() {
+    const modal = document.getElementById('loginModal');
+    modal.classList.remove('show');
+    
+    const userName = currentUser === 'me' ? '我' : '男友';
+    document.getElementById('currentUser').textContent = userName;
+    document.getElementById('greetingName').textContent = userName;
+    
+    switchPage('home');
+}
+
+// ===== 页面切换 =====
+function switchPage(pageName) {
+    // 隐藏所有页面
+    document.querySelectorAll('.page').forEach(page => {
+        page.classList.remove('active');
+    });
+
+    // 显示选中页面
+    const page = document.getElementById(pageName);
+    if (page) {
+        page.classList.add('active');
     }
-}
 
-.login-modal {
-    max-width: 400px;
-}
+    // 更新导航栏
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.classList.remove('active');
+    });
+    document.querySelector(`[data-page="${pageName}"]`).classList.add('active');
 
-.login-modal h2 {
-    text-align: center;
-    color: var(--primary-blue);
-    margin-bottom: 2rem;
-}
-
-.identity-selection {
-    display: flex;
-    gap: 2rem;
-    justify-content: center;
-}
-
-.identity-btn {
-    background: var(--white);
-    border: 2px solid var(--pale-blue);
-    padding: 2rem;
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    text-align: center;
-}
-
-.identity-btn:hover {
-    border-color: var(--primary-blue);
-    box-shadow: 0 4px 12px rgba(93, 173, 226, 0.2);
-    transform: translateY(-4px);
-}
-
-.identity-avatar {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-}
-
-.identity-name {
-    font-size: 1.2rem;
-    font-weight: 600;
-    color: var(--primary-blue);
-}
-
-/* ===== 主应用 ===== */
-.hidden {
-    display: none !important;
-}
-
-.pages-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 2rem;
-}
-
-.page {
-    display: none;
-    animation: fadeIn 0.3s ease;
-}
-
-.page.active {
-    display: block;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
+    // 根据页面类型执行初始化
+    switch(pageName) {
+        case 'home':
+            updateHomePage();
+            break;
+        case 'calendar':
+            renderCalendar();
+            break;
+        case 'room':
+            renderCheckInTimeline();
+            break;
+        case 'messages':
+            renderMessagesWall();
+            markMessagesAsRead();
+            break;
+        case 'wishlist':
+            renderWishlist();
+            break;
+        case 'miss':
+            renderMissHistory();
+            break;
+        case 'stats':
+            updateChart();
+            break;
+        case 'settings':
+            loadDateConfig();
+            break;
     }
 }
 
-.page-content {
-    background: var(--white);
-    border-radius: 12px;
-    padding: 2rem;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-/* ===== 首页 ===== */
-.greeting-card {
-    background: linear-gradient(120deg, #a1c4fd 0%, #c2e9fb 100%);
-    padding: 2rem;
-    border-radius: 12px;
-    color: white;
-    margin-bottom: 2rem;
-    text-align: center;
-}
-
-.greeting-card h2 {
-    font-size: 1.8rem;
-    margin-bottom: 0.5rem;
-}
-
-.countdown-container {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1.5rem;
-    margin-bottom: 2rem;
-}
-
-.countdown-card {
-    background: var(--white);
-    border: 2px solid var(--pale-blue);
-    border-radius: 12px;
-    padding: 2rem;
-    text-align: center;
-    transition: all 0.3s ease;
-}
-
-.countdown-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 4px 12px rgba(93, 173, 226, 0.2);
-}
-
-.countdown-label {
-    font-size: 0.9rem;
-    color: var(--dark-gray);
-    margin-bottom: 1rem;
-}
-
-.countdown-number {
-    font-size: 3rem;
-    font-weight: 700;
-    color: var(--primary-blue);
-}
-
-.countdown-unit {
-    font-size: 1rem;
-    color: var(--dark-gray);
-}
-
-.alert-card {
-    background: linear-gradient(to top, #fdcbf1 0%, #fdcbf1 1%, #e6dee9 100%);
-    padding: 1.5rem;
-    border-radius: 12px;
-    margin-bottom: 2rem;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    font-weight: 500;
-}
-
-.alert-icon {
-    font-size: 1.5rem;
-}
-
-.miss-you-section {
-    margin-bottom: 2rem;
-}
-
-.btn-miss-you {
-    width: 100%;
-    padding: 1.5rem;
-    background: linear-gradient(135deg, #ff6b6b 0%, #ff8787 100%);
-    color: white;
-    border: none;
-    border-radius: 12px;
-    font-size: 1.2rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    margin-bottom: 1rem;
-}
-
-.btn-miss-you:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
-}
-
-.miss-you-stats {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-}
-
-.stat-item {
-    background: var(--gray);
-    padding: 1rem;
-    border-radius: 8px;
-    text-align: center;
-}
-
-.stat-label {
-    display: block;
-    font-size: 0.9rem;
-    color: var(--dark-gray);
-    margin-bottom: 0.5rem;
-}
-
-.stat-value {
-    display: block;
-    font-size: 1.8rem;
-    font-weight: 700;
-    color: var(--primary-blue);
-}
-
-.stat-unit {
-    display: block;
-    font-size: 0.9rem;
-    color: var(--dark-gray);
-}
-
-.dashboard-card {
-    background: linear-gradient(135deg, #FCEAB8 0%, #FEFFFF 100%);
-    padding: 2rem;
-    border-radius: 12px;
-    margin-top: 2rem;
-}
-
-.dashboard-card h3 {
-    color: var(--primary-blue);
-    margin-bottom: 1.5rem;
-}
-
-.dashboard-stats {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1rem;
-}
-
-.dashboard-item {
-    background: var(--white);
-    padding: 1.5rem;
-    border-radius: 8px;
-    text-align: center;
-    border: 2px solid var(--pale-blue);
-}
-
-.dashboard-icon {
-    font-size: 1.5rem;
-    display: block;
-    margin-bottom: 0.5rem;
-}
-
-.dashboard-value {
-    display: block;
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--primary-blue);
-    margin-bottom: 0.5rem;
-}
-
-.dashboard-label {
-    display: block;
-    font-size: 0.9rem;
-    color: var(--dark-gray);
-}
-
-/* ===== 日历 ===== */
-.calendar-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-}
-
-.btn-nav {
-    background: var(--primary-blue);
-    color: white;
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.btn-nav:hover {
-    background: var(--light-blue);
-}
-
-.month-year {
-    font-size: 1.3rem;
-    font-weight: 600;
-    color: var(--primary-blue);
-}
-
-.calendar-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 0.5rem;
-    margin-bottom: 2rem;
-}
-
-.calendar-day-header {
-    text-align: center;
-    font-weight: 600;
-    color: var(--primary-blue);
-    padding: 0.5rem;
-}
-
-.calendar-day {
-    aspect-ratio: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 2px solid var(--pale-blue);
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    background: var(--white);
-}
-
-.calendar-day:hover {
-    border-color: var(--primary-blue);
-    background: rgba(93, 173, 226, 0.05);
-}
-
-.calendar-day.today {
-    background: var(--primary-blue);
-    color: white;
-    font-weight: 600;
-}
-
-.calendar-detail {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2rem;
-}
-
-.detail-section {
-    background: var(--gray);
-    padding: 1.5rem;
-    border-radius: 8px;
-}
-
-.detail-section h3 {
-    color: var(--primary-blue);
-    margin-bottom: 1rem;
-}
-
-.records-list,
-.messages-list {
-    margin-bottom: 1rem;
-}
-
-.record-item,
-.message-item {
-    background: var(--white);
-    padding: 1rem;
-    border-radius: 8px;
-    margin-bottom: 1rem;
-    border-left: 4px solid var(--primary-blue);
-}
-
-.record-item strong,
-.message-item strong {
-    color: var(--primary-blue);
-}
-
-.record-image,
-.message-image {
-    max-width: 100%;
-    border-radius: 8px;
-    margin-top: 0.5rem;
-}
-
-.record-meta,
-.message-meta {
-    font-size: 0.85rem;
-    color: var(--dark-gray);
-    margin-top: 0.5rem;
-}
-
-.reply-button {
-    background: var(--primary-blue);
-    color: white;
-    border: none;
-    padding: 0.4rem 0.8rem;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.85rem;
-    margin-top: 0.5rem;
-    transition: all 0.3s ease;
-}
-
-.reply-button:hover {
-    background: var(--light-blue);
-}
-
-/* ===== 打卡 ===== */
-.room-section {
-    background: var(--white);
-}
-
-.room-section h2 {
-    color: var(--primary-blue);
-    margin-bottom: 2rem;
-}
-
-.checkin-management {
-    margin-bottom: 3rem;
-}
-
-.add-project {
-    display: flex;
-    gap: 1rem;
-    margin-bottom: 2rem;
-}
-
-.input-field {
-    flex: 1;
-    padding: 0.75rem;
-    border: 2px solid var(--pale-blue);
-    border-radius: 8px;
-    font-size: 1rem;
-    transition: all 0.3s ease;
-}
-
-.input-field:focus {
-    outline: none;
-    border-color: var(--primary-blue);
-    box-shadow: 0 0 0 3px rgba(93, 173, 226, 0.1);
-}
-
-.btn-add,
-.btn-primary {
-    background: var(--primary-blue);
-    color: white;
-    border: none;
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 600;
-    transition: all 0.3s ease;
-}
-
-.btn-add:hover,
-.btn-primary:hover {
-    background: var(--light-blue);
-    transform: translateY(-2px);
-}
-
-.btn-secondary {
-    background: var(--pale-blue);
-    color: var(--primary-blue);
-    border: none;
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 600;
-    transition: all 0.3s ease;
-}
-
-.btn-secondary:hover {
-    background: var(--light-blue);
-}
-
-.btn-danger {
-    background: #ff6b6b;
-    color: white;
-    border: none;
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 600;
-    transition: all 0.3s ease;
-}
-
-.btn-danger:hover {
-    background: #ff5252;
-}
-
-.projects-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 2rem;
-}
-
-.checkin-card {
-    background: linear-gradient(135deg, #D2EAF4 0%, #A6D3E6 100%);
-    padding: 1.5rem;
-    border-radius: 12px;
-    border: 2px solid var(--pale-blue);
-    transition: all 0.3s ease;
-}
-
-.checkin-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 4px 12px rgba(93, 173, 226, 0.2);
-}
-
-.checkin-title {
-    font-size: 1.2rem;
-    font-weight: 600;
-    color: var(--primary-blue);
-    margin-bottom: 1rem;
-}
-
-.checkin-status {
-    font-size: 0.9rem;
-    color: var(--dark-gray);
-    margin-bottom: 0.5rem;
-}
-
-.checkin-time {
-    font-size: 0.85rem;
-    color: var(--dark-gray);
-    margin-bottom: 1rem;
-}
-
-.checkin-buttons {
-    display: flex;
-    gap: 0.5rem;
-}
-
-.btn-start,
-.btn-end {
-    flex: 1;
-    padding: 0.5rem;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: 600;
-    transition: all 0.3s ease;
-}
-
-.btn-start {
-    background: #4CAF50;
-    color: white;
-}
-
-.btn-start:hover {
-    background: #45a049;
-}
-
-.btn-end {
-    background: #f44336;
-    color: white;
-}
-
-.btn-end:hover {
-    background: #da190b;
-}
-
-.timeline-section {
-    margin-bottom: 3rem;
-}
-
-.timeline {
-    background: var(--gray);
-    padding: 1.5rem;
-    border-radius: 8px;
-}
-
-.timeline-item {
-    display: flex;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-    padding-bottom: 1.5rem;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.timeline-item:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-    padding-bottom: 0;
-}
-
-.timeline-marker {
-    width: 40px;
-    height: 40px;
-    background: var(--primary-blue);
-    color: white;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    flex-shrink: 0;
-}
-
-.timeline-content h4 {
-    color: var(--primary-blue);
-    margin-bottom: 0.5rem;
-}
-
-.timeline-time {
-    font-size: 0.9rem;
-    color: var(--dark-gray);
-    margin-bottom: 0.5rem;
-}
-
-.timeline-note {
-    font-size: 0.9rem;
-    color: #555;
-    margin-bottom: 0.5rem;
-}
-
-.timeline-image {
-    max-width: 100%;
-    border-radius: 8px;
-    margin-top: 0.5rem;
-}
-
-.chart-section {
-    margin-top: 3rem;
-}
-
-.chart-controls {
-    display: flex;
-    gap: 1rem;
-    margin-bottom: 2rem;
-}
-
-.select-field {
-    padding: 0.75rem;
-    border: 2px solid var(--pale-blue);
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.select-field:focus {
-    outline: none;
-    border-color: var(--primary-blue);
-}
-
-.chart-canvas {
-    max-height: 400px;
-}
-
-/* ===== 留言墙 ===== */
-.message-input-section {
-    margin-bottom: 2rem;
-}
-
-.textarea-field {
-    width: 100%;
-    padding: 1rem;
-    border: 2px solid var(--pale-blue);
-    border-radius: 8px;
-    font-size: 1rem;
-    font-family: inherit;
-    resize: vertical;
-    min-height: 120px;
-    transition: all 0.3s ease;
-    margin-bottom: 1rem;
-}
-
-.textarea-field:focus {
-    outline: none;
-    border-color: var(--primary-blue);
-    box-shadow: 0 0 0 3px rgba(93, 173, 226, 0.1);
-}
-
-.message-input-buttons {
-    display: flex;
-    gap: 1rem;
-}
-
-.messages-wall {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-}
-
-.wall-message {
-    background: var(--white);
-    border: 2px solid var(--pale-blue);
-    border-radius: 12px;
-    padding: 1.5rem;
-    transition: all 0.3s ease;
-}
-
-.wall-message.unread {
-    border-color: var(--primary-blue);
-    background: rgba(93, 173, 226, 0.05);
-}
-
-.wall-message:hover {
-    box-shadow: 0 4px 12px rgba(93, 173, 226, 0.2);
-}
-
-.wall-message-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 1rem;
-}
-
-.wall-message-author {
-    font-weight: 600;
-    color: var(--primary-blue);
-}
-
-.wall-message-time {
-    font-size: 0.85rem;
-    color: var(--dark-gray);
-}
-
-.wall-message-text {
-    color: #333;
-    margin-bottom: 1rem;
-    line-height: 1.6;
-}
-
-.wall-message-image {
-    max-width: 100%;
-    border-radius: 8px;
-    margin-bottom: 1rem;
-}
-
-.message-replies {
-    background: var(--gray);
-    padding: 1rem;
-    border-radius: 8px;
-    margin-top: 1rem;
-}
-
-.reply-item {
-    background: var(--white);
-    padding: 0.75rem;
-    border-radius: 4px;
-    margin-bottom: 0.5rem;
-    border-left: 3px solid var(--primary-blue);
-}
-
-.reply-item:last-child {
-    margin-bottom: 0;
-}
-
-.reply-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 0.5rem;
-    font-size: 0.85rem;
-}
-
-.reply-author {
-    font-weight: 600;
-    color: var(--primary-blue);
-}
-
-.reply-time {
-    color: var(--dark-gray);
-}
-
-.reply-text {
-    color: #555;
-    font-size: 0.9rem;
-}
-
-/* ===== 心愿清单 ===== */
-.wish-input-section {
-    display: flex;
-    gap: 1rem;
-    margin-bottom: 2rem;
-}
-
-.wishlist-items {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.wish-item {
-    background: var(--white);
-    border: 2px solid var(--pale-blue);
-    border-radius: 8px;
-    padding: 1.5rem;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    transition: all 0.3s ease;
-}
-
-.wish-item.completed {
-    opacity: 0.6;
-    background: var(--gray);
-}
-
-.wish-item:hover {
-    box-shadow: 0 4px 12px rgba(93, 173, 226, 0.2);
-}
-
-.wish-checkbox {
-    width: 20px;
-    height: 20px;
-    cursor: pointer;
-}
-
-.wish-text {
-    flex: 1;
-    color: #333;
-}
-
-.wish-item.completed .wish-text {
-    text-decoration: line-through;
-    color: var(--dark-gray);
-}
-
-.wish-author {
-    font-size: 0.85rem;
-    color: var(--dark-gray);
-}
-
-.wish-delete {
-    background: #ff6b6b;
-    color: white;
-    border: none;
-    padding: 0.4rem 0.8rem;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.wish-delete:hover {
-    background: #ff5252;
-}
-
-/* ===== 我想你 ===== */
-.miss-calendar-section {
-    margin-bottom: 2rem;
-}
-
-.miss-calendar-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 0.5rem;
-    margin-bottom: 2rem;
-}
-
-.miss-calendar-day {
-    aspect-ratio: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    border: 2px solid var(--pale-blue);
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    background: var(--white);
-    font-size: 0.75rem;
-    padding: 0.25rem;
-}
-
-.miss-calendar-day:hover {
-    border-color: var(--primary-blue);
-    background: rgba(93, 173, 226, 0.05);
-}
-
-.miss-calendar-day.has-miss {
-    background: rgba(93, 173, 226, 0.1);
-}
-
-.miss-calendar-day.high-miss {
-    border-color: #ff6b6b;
-    background: rgba(255, 107, 107, 0.1);
-}
-
-.miss-day-number {
-    font-weight: 600;
-    color: var(--primary-blue);
-}
-
-.miss-day-count {
-    font-size: 0.7rem;
-    color: var(--dark-gray);
-}
-
-.miss-day-avatars {
-    font-size: 0.8rem;
-}
-
-.miss-stats {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    margin-bottom: 2rem;
-}
-
-.stat-card {
-    background: linear-gradient(135deg, #D2EAF4 0%, #A6D3E6 100%);
-    padding: 1.5rem;
-    border-radius: 12px;
-    text-align: center;
-    border: 2px solid var(--pale-blue);
-}
-
-.stat-card .stat-label {
-    color: var(--dark-gray);
-    margin-bottom: 0.5rem;
-}
-
-.stat-card .stat-value {
-    font-size: 2rem;
-    font-weight: 700;
-    color: var(--primary-blue);
-    margin-bottom: 0.5rem;
-}
-
-.stat-card .stat-unit {
-    color: var(--dark-gray);
-}
-
-.miss-history-section {
-    background: var(--gray);
-    padding: 1.5rem;
-    border-radius: 8px;
-}
-
-.miss-history-section h3 {
-    color: var(--primary-blue);
-    margin-bottom: 1rem;
-}
-
-.miss-history {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-.miss-record {
-    background: var(--white);
-    padding: 0.75rem;
-    border-radius: 4px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-left: 3px solid var(--primary-blue);
-}
-
-.miss-record-user {
-    font-weight: 600;
-    color: var(--primary-blue);
-}
-
-.miss-record-time {
-    font-size: 0.85rem;
-    color: var(--dark-gray);
-}
-
-/* ===== 设置 ===== */
-.settings-section {
-    margin-bottom: 2rem;
-    padding-bottom: 2rem;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.settings-section:last-child {
-    border-bottom: none;
-}
-
-.settings-section h3 {
-    color: var(--primary-blue);
-    margin-bottom: 1rem;
-}
-
-.setting-item {
-    margin-bottom: 1rem;
-}
-
-.setting-item label {
-    display: block;
-    font-weight: 600;
-    color: #333;
-    margin-bottom: 0.5rem;
-}
-
-.avatar-settings {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2rem;
-}
-
-.avatar-item {
-    background: var(--gray);
-    padding: 1.5rem;
-    border-radius: 8px;
-}
-
-.avatar-item label {
-    color: var(--primary-blue);
-}
-
-.avatar-item small {
-    display: block;
-    color: var(--dark-gray);
-    margin-bottom: 1rem;
-}
-
-.file-input {
-    display: block;
-    margin-bottom: 1rem;
-}
-
-.file-input.hidden {
-    display: none;
-}
-
-.data-buttons {
-    display: flex;
-    gap: 1rem;
-    flex-wrap: wrap;
-}
-
-/* ===== 通知 ===== */
-.notification {
-    position: fixed;
-    bottom: 2rem;
-    right: 2rem;
-    background: var(--primary-blue);
-    color: white;
-    padding: 1rem 1.5rem;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    animation: slideUp 0.3s ease;
-    z-index: 2000;
-}
-
-.notification.hidden {
-    display: none;
-}
-
-@keyframes slideUp {
-    from {
-        transform: translateY(100px);
-        opacity: 0;
+// ===== Firebase 数据同步 =====
+function syncDataWithFirebase() {
+    if (!isOnline) return;
+
+    // 同步留言
+    const messages = getMessages();
+    if (messages.length > 0) {
+        database.ref('messages').set(messages).catch(err => {
+            console.error('同步留言失败:', err);
+        });
     }
-    to {
-        transform: translateY(0);
-        opacity: 1;
+
+    // 同步打卡
+    const checkIns = getCheckIns();
+    if (checkIns.length > 0) {
+        database.ref('checkIns').set(checkIns).catch(err => {
+            console.error('同步打卡失败:', err);
+        });
+    }
+
+    // 同步心愿清单
+    const wishes = getWishes();
+    if (wishes.length > 0) {
+        database.ref('wishes').set(wishes).catch(err => {
+            console.error('同步心愿失败:', err);
+        });
+    }
+
+    // 同步想念记录
+    const missYouRecords = getMissYouRecords();
+    if (missYouRecords.length > 0) {
+        database.ref('missYouRecords').set(missYouRecords).catch(err => {
+            console.error('同步想念失败:', err);
+        });
     }
 }
 
-/* ===== 响应式设计 ===== */
-@media (max-width: 768px) {
-    .navbar {
-        padding: 1rem;
-        flex-wrap: wrap;
-    }
+function loadDataFromFirebase() {
+    if (!isOnline) return;
 
-    .navbar-center {
-        order: 3;
-        width: 100%;
-        margin-top: 1rem;
-    }
+    // 加载留言
+    database.ref('messages').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            localStorage.setItem('messages', JSON.stringify(data));
+            updateUnreadCount();
+            if (document.getElementById('messages').classList.contains('active')) {
+                renderMessagesWall();
+            }
+        }
+    });
 
-    .hamburger {
-        display: block;
-        order: 2;
-    }
+    // 加载打卡
+    database.ref('checkIns').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            localStorage.setItem('checkIns', JSON.stringify(data));
+            if (document.getElementById('room').classList.contains('active')) {
+                renderCheckInTimeline();
+            }
+        }
+    });
 
-    .nav-menu {
-        display: none;
-        flex-direction: column;
-        gap: 0.5rem;
-        width: 100%;
-        background: var(--white);
-        padding: 1rem;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    }
+    // 加载心愿清单
+    database.ref('wishes').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            localStorage.setItem('wishes', JSON.stringify(data));
+            if (document.getElementById('wishlist').classList.contains('active')) {
+                renderWishlist();
+            }
+        }
+    });
 
-    .nav-menu.active {
-        display: flex;
-    }
+    // 加载想念记录
+    database.ref('missYouRecords').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            localStorage.setItem('missYouRecords', JSON.stringify(data));
+            updateMissYouStats();
+            if (document.getElementById('miss').classList.contains('active')) {
+                renderMissHistory();
+            }
+        }
+    });
+}
 
-    .countdown-container {
-        grid-template-columns: 1fr;
-    }
+// 启动 Firebase 实时监听
+loadDataFromFirebase();
 
-    .calendar-detail {
-        grid-template-columns: 1fr;
-    }
+// ===== 首页功能 =====
+function updateHomePage() {
+    updateCountdown();
+    updateExamCountdown();
+    updateUnreadCount();
+    updateMissYouStats();
+}
 
-    .dashboard-stats {
-        grid-template-columns: 1fr;
-    }
+function updateCountdown() {
+    const today = new Date();
+    const together = CONFIG.togetherDate;
+    const diff = today - together;
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    document.getElementById('togetherDays').textContent = days;
+}
 
-    .projects-grid {
-        grid-template-columns: 1fr;
-    }
+function updateExamCountdown() {
+    const today = new Date();
+    const exam = CONFIG.examDate;
+    const diff = exam - today;
+    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+    document.getElementById('examDays').textContent = Math.max(0, days);
+}
 
-    .avatar-settings {
-        grid-template-columns: 1fr;
-    }
+function updateUnreadCount() {
+    const messages = getMessages();
+    const unread = messages.filter(msg => !msg.read).length;
+    document.getElementById('unreadCount').textContent = unread;
+}
 
-    .pages-container {
-        padding: 1rem;
-    }
+function updateMissYouStats() {
+    const missYouRecords = getMissYouRecords();
+    const today = new Date().toDateString();
+    const todayCount = missYouRecords.filter(record => 
+        new Date(record.date).toDateString() === today
+    ).length;
+    
+    document.getElementById('todayMissCount').textContent = todayCount;
+    document.getElementById('totalMissCount').textContent = missYouRecords.length;
+}
 
-    .page-content {
-        padding: 1rem;
+function recordMissYou() {
+    const missYouRecords = getMissYouRecords();
+    missYouRecords.push({
+        user: currentUser,
+        date: new Date().toISOString(),
+    });
+    localStorage.setItem('missYouRecords', JSON.stringify(missYouRecords));
+    
+    // 同步到 Firebase
+    if (isOnline) {
+        database.ref('missYouRecords').set(missYouRecords).catch(err => {
+            console.error('同步想念失败:', err);
+        });
     }
+    
+    updateMissYouStats();
+    showNotification('已记录你的想念 ❤️');
+}
 
-    .modal-content {
-        width: 95%;
-        padding: 1.5rem;
+// ===== 日历功能 =====
+function renderCalendar() {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    
+    // 更新标题
+    const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', 
+                        '7月', '8月', '9月', '10月', '11月', '12月'];
+    document.getElementById('monthYear').textContent = `${year}年 ${monthNames[month]}`;
+    
+    // 清空日历
+    const calendarGrid = document.getElementById('calendarGrid');
+    calendarGrid.innerHTML = '';
+    
+    // 添加星期头
+    const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
+    weekDays.forEach(day => {
+        const header = document.createElement('div');
+        header.className = 'calendar-day-header';
+        header.textContent = day;
+        calendarGrid.appendChild(header);
+    });
+    
+    // 获取第一天是星期几
+    const firstDay = new Date(year, month, 1).getDay();
+    
+    // 获取该月天数
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    
+    // 获取上月天数
+    const daysInPrevMonth = new Date(year, month, 0).getDate();
+    
+    // 添加上月的日期
+    for (let i = firstDay - 1; i >= 0; i--) {
+        const day = document.createElement('div');
+        day.className = 'calendar-day other-month';
+        day.textContent = daysInPrevMonth - i;
+        calendarGrid.appendChild(day);
     }
-
-    .miss-stats {
-        grid-template-columns: 1fr;
+    
+    // 添加本月的日期
+    const today = new Date();
+    for (let i = 1; i <= daysInMonth; i++) {
+        const day = document.createElement('div');
+        day.className = 'calendar-day';
+        day.textContent = i;
+        
+        const date = new Date(year, month, i);
+        if (date.toDateString() === today.toDateString()) {
+            day.classList.add('today');
+        }
+        
+        day.addEventListener('click', function() {
+            selectDate(date);
+        });
+        
+        calendarGrid.appendChild(day);
     }
-
-    .data-buttons {
-        flex-direction: column;
+    
+    // 添加下月的日期
+    const totalCells = calendarGrid.children.length - 7; // 减去星期头
+    const remainingCells = 42 - totalCells; // 6行 * 7列 = 42
+    for (let i = 1; i <= remainingCells; i++) {
+        const day = document.createElement('div');
+        day.className = 'calendar-day other-month';
+        day.textContent = i;
+        calendarGrid.appendChild(day);
     }
+    
+    // 选择今天
+    selectDate(today);
+}
 
-    .data-buttons button {
-        width: 100%;
+function previousMonth() {
+    currentDate.setMonth(currentDate.getMonth() - 1);
+    renderCalendar();
+}
+
+function nextMonth() {
+    currentDate.setMonth(currentDate.getMonth() + 1);
+    renderCalendar();
+}
+
+function selectDate(date) {
+    currentDate = date;
+    
+    // 更新日历选中状态
+    document.querySelectorAll('.calendar-day.selected').forEach(day => {
+        day.classList.remove('selected');
+    });
+    
+    // 找到对应的日期元素并标记为选中
+    const dayElements = document.querySelectorAll('.calendar-day');
+    dayElements.forEach(element => {
+        if (element.textContent == date.getDate() && !element.classList.contains('other-month')) {
+            element.classList.add('selected');
+        }
+    });
+    
+    // 更新日常记录和留言
+    renderDailyRecords();
+    renderDailyMessages();
+}
+
+function renderDailyRecords() {
+    const records = getDailyRecords(currentDate);
+    const container = document.getElementById('dailyRecords');
+    container.innerHTML = '';
+    
+    if (records.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-light); text-align: center;">暂无记录</p>';
+        return;
+    }
+    
+    records.forEach(record => {
+        const item = document.createElement('div');
+        item.className = 'record-item';
+        
+        const author = record.user === 'me' ? '我' : '男友';
+        const time = new Date(record.date).toLocaleString('zh-CN');
+        
+        let html = `
+            <p>${record.text}</p>
+            <div class="record-meta">${author} · ${time}</div>
+        `;
+        
+        if (record.image) {
+            html += `<img src="${record.image}" class="record-image" alt="记录图片">`;
+        }
+        
+        item.innerHTML = html;
+        container.appendChild(item);
+    });
+}
+
+function renderDailyMessages() {
+    const messages = getDailyMessages(currentDate);
+    const container = document.getElementById('dailyMessages');
+    container.innerHTML = '';
+    
+    if (messages.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-light); text-align: center;">暂无留言</p>';
+        return;
+    }
+    
+    messages.forEach(message => {
+        const item = document.createElement('div');
+        item.className = 'message-item' + (message.read ? '' : ' unread');
+        
+        const author = message.user === 'me' ? '我' : '男友';
+        const time = new Date(message.date).toLocaleString('zh-CN');
+        
+        let html = `
+            <p>${message.text}</p>
+            <div class="message-meta">${author} · ${time}</div>
+        `;
+        
+        if (message.image) {
+            html += `<img src="${message.image}" class="message-image" alt="留言图片">`;
+        }
+        
+        item.innerHTML = html;
+        container.appendChild(item);
+    });
+}
+
+function showAddRecordModal() {
+    document.getElementById('addRecordModal').classList.add('show');
+}
+
+function showAddMessageModal() {
+    document.getElementById('addMessageModal').classList.add('show');
+}
+
+function saveRecord() {
+    const text = document.getElementById('recordText').value.trim();
+    if (!text) {
+        alert('请输入记录内容');
+        return;
+    }
+    
+    const records = getDailyRecords(currentDate);
+    records.push({
+        user: currentUser,
+        text: text,
+        date: new Date().toISOString(),
+        image: null,
+    });
+    
+    saveDailyRecords(currentDate, records);
+    
+    document.getElementById('recordText').value = '';
+    closeModal('addRecordModal');
+    renderDailyRecords();
+    showNotification('记录已保存');
+}
+
+function saveCalendarMessage() {
+    const text = document.getElementById('calendarMessageText').value.trim();
+    if (!text) {
+        alert('请输入留言内容');
+        return;
+    }
+    
+    const messages = getDailyMessages(currentDate);
+    messages.push({
+        user: currentUser,
+        text: text,
+        date: new Date().toISOString(),
+        image: null,
+        read: false,
+    });
+    
+    saveDailyMessages(currentDate, messages);
+    
+    document.getElementById('calendarMessageText').value = '';
+    closeModal('addMessageModal');
+    renderDailyMessages();
+    showNotification('留言已保存');
+}
+
+// ===== 打卡功能 =====
+function renderCheckInTimeline() {
+    const checkIns = getCheckIns();
+    const container = document.getElementById('checkInTimeline');
+    container.innerHTML = '';
+    
+    if (checkIns.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-light); text-align: center;">暂无打卡记录</p>';
+        return;
+    }
+    
+    // 按时间倒序排列
+    checkIns.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+    
+    checkIns.forEach((checkIn, index) => {
+        const item = document.createElement('div');
+        item.className = 'timeline-item';
+        
+        const author = checkIn.user === 'me' ? '👩' : '👨';
+        const startTime = new Date(checkIn.startTime).toLocaleString('zh-CN');
+        const endTime = new Date(checkIn.endTime).toLocaleString('zh-CN');
+        
+        let html = `
+            <div class="timeline-marker">${index + 1}</div>
+            <div class="timeline-content">
+                <h4>${checkIn.project}</h4>
+                <div class="timeline-time">
+                    ${author} ${startTime} ~ ${endTime}
+                </div>
+        `;
+        
+        if (checkIn.note) {
+            html += `<div class="timeline-note">${checkIn.note}</div>`;
+        }
+        
+        if (checkIn.image) {
+            html += `<img src="${checkIn.image}" class="timeline-image" alt="打卡图片">`;
+        }
+        
+        html += '</div>';
+        
+        item.innerHTML = html;
+        container.appendChild(item);
+    });
+    
+    // 更新项目选择器
+    updateCheckInProjectSelector();
+}
+
+function updateCheckInProjectSelector() {
+    const selector = document.getElementById('checkInProject');
+    selector.innerHTML = '<option value="">选择打卡项目</option>';
+    
+    CONFIG.checkInProjects.forEach(project => {
+        const option = document.createElement('option');
+        option.value = project;
+        option.textContent = project;
+        selector.appendChild(option);
+    });
+}
+
+function addCheckInProject() {
+    const input = document.getElementById('checkInProjectInput');
+    const project = input.value.trim();
+    
+    if (!project) {
+        alert('请输入项目名称');
+        return;
+    }
+    
+    if (!CONFIG.checkInProjects.includes(project)) {
+        CONFIG.checkInProjects.push(project);
+        localStorage.setItem('checkInProjects', JSON.stringify(CONFIG.checkInProjects));
+        input.value = '';
+        updateCheckInProjectSelector();
+        showNotification('项目已添加');
+    } else {
+        alert('项目已存在');
     }
 }
 
-@media (max-width: 480px) {
-    .app-title {
-        font-size: 1.2rem;
-    }
+function showAddCheckInModal() {
+    document.getElementById('addCheckInModal').classList.add('show');
+    updateCheckInProjectSelector();
+}
 
-    .navbar-right {
-        display: none;
+function saveCheckIn() {
+    const project = document.getElementById('checkInProject').value;
+    const startTime = document.getElementById('checkInStart').value;
+    const endTime = document.getElementById('checkInEnd').value;
+    const note = document.getElementById('checkInNote').value.trim();
+    
+    if (!project || !startTime || !endTime) {
+        alert('请填写必要信息');
+        return;
     }
-
-    .greeting-card h2 {
-        font-size: 1.3rem;
+    
+    const checkIns = getCheckIns();
+    checkIns.push({
+        user: currentUser,
+        project: project,
+        startTime: new Date(startTime).toISOString(),
+        endTime: new Date(endTime).toISOString(),
+        note: note,
+        image: null,
+        date: new Date().toISOString(),
+    });
+    
+    localStorage.setItem('checkIns', JSON.stringify(checkIns));
+    
+    // 同步到 Firebase
+    if (isOnline) {
+        database.ref('checkIns').set(checkIns).catch(err => {
+            console.error('同步打卡失败:', err);
+        });
     }
+    
+    document.getElementById('checkInProject').value = '';
+    document.getElementById('checkInStart').value = '';
+    document.getElementById('checkInEnd').value = '';
+    document.getElementById('checkInNote').value = '';
+    
+    closeModal('addCheckInModal');
+    renderCheckInTimeline();
+    showNotification('打卡已保存');
+}
 
-    .countdown-number {
-        font-size: 2rem;
+// ===== 留言墙功能 =====
+function renderMessagesWall() {
+    const messages = getMessages();
+    const container = document.getElementById('messagesWall');
+    container.innerHTML = '';
+    
+    if (messages.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-light); text-align: center;">暂无留言</p>';
+        return;
     }
+    
+    // 按时间倒序排列
+    messages.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    messages.forEach(message => {
+        const item = document.createElement('div');
+        item.className = 'wall-message' + (message.read ? '' : ' unread');
+        
+        const author = message.user === 'me' ? '我' : '男友';
+        const time = new Date(message.date).toLocaleString('zh-CN');
+        
+        let html = `
+            <div class="wall-message-header">
+                <span class="wall-message-author">${author}</span>
+                <span class="wall-message-time">${time}</span>
+            </div>
+            <div class="wall-message-text">${message.text}</div>
+        `;
+        
+        if (message.image) {
+            html += `<img src="${message.image}" class="wall-message-image" alt="留言图片">`;
+        }
+        
+        item.innerHTML = html;
+        container.appendChild(item);
+    });
+}
 
-    .identity-selection {
-        flex-direction: column;
-        gap: 1rem;
+function sendMessage() {
+    const text = document.getElementById('messageText').value.trim();
+    if (!text) {
+        alert('请输入留言内容');
+        return;
     }
-
-    .identity-btn {
-        padding: 1.5rem;
+    
+    const messages = getMessages();
+    messages.push({
+        user: currentUser,
+        text: text,
+        date: new Date().toISOString(),
+        image: null,
+        read: false,
+    });
+    
+    localStorage.setItem('messages', JSON.stringify(messages));
+    
+    // 同步到 Firebase
+    if (isOnline) {
+        database.ref('messages').set(messages).catch(err => {
+            console.error('同步留言失败:', err);
+        });
     }
+    
+    document.getElementById('messageText').value = '';
+    renderMessagesWall();
+    updateUnreadCount();
+    showNotification('留言已发送');
+}
 
-    .add-project {
-        flex-direction: column;
+function markMessagesAsRead() {
+    const messages = getMessages();
+    messages.forEach(message => {
+        message.read = true;
+    });
+    localStorage.setItem('messages', JSON.stringify(messages));
+    updateUnreadCount();
+}
+
+// ===== 心愿清单功能 =====
+function renderWishlist() {
+    const wishes = getWishes();
+    const container = document.getElementById('wishlistItems');
+    container.innerHTML = '';
+    
+    if (wishes.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-light); text-align: center;">暂无心愿</p>';
+        return;
     }
+    
+    wishes.forEach((wish, index) => {
+        const item = document.createElement('div');
+        item.className = 'wish-item' + (wish.completed ? ' completed' : '');
+        
+        const author = wish.user === 'me' ? '我' : '男友';
+        
+        const html = `
+            <input type="checkbox" class="wish-checkbox" ${wish.completed ? 'checked' : ''} 
+                   onchange="toggleWish(${index})">
+            <span class="wish-text">${wish.text}</span>
+            <span class="wish-author">${author}</span>
+            <button class="wish-delete" onclick="deleteWish(${index})">删除</button>
+        `;
+        
+        item.innerHTML = html;
+        container.appendChild(item);
+    });
+}
 
-    .message-input-buttons {
-        flex-direction: column;
+function addWish() {
+    const input = document.getElementById('wishInput');
+    const text = input.value.trim();
+    
+    if (!text) {
+        alert('请输入心愿');
+        return;
     }
-
-    .message-input-buttons button {
-        width: 100%;
+    
+    const wishes = getWishes();
+    wishes.push({
+        user: currentUser,
+        text: text,
+        completed: false,
+        date: new Date().toISOString(),
+    });
+    
+    localStorage.setItem('wishes', JSON.stringify(wishes));
+    
+    // 同步到 Firebase
+    if (isOnline) {
+        database.ref('wishes').set(wishes).catch(err => {
+            console.error('同步心愿失败:', err);
+        });
     }
+    
+    input.value = '';
+    renderWishlist();
+    showNotification('心愿已添加');
+}
 
-    .wish-input-section {
-        flex-direction: column;
+function toggleWish(index) {
+    const wishes = getWishes();
+    wishes[index].completed = !wishes[index].completed;
+    localStorage.setItem('wishes', JSON.stringify(wishes));
+    
+    // 同步到 Firebase
+    if (isOnline) {
+        database.ref('wishes').set(wishes).catch(err => {
+            console.error('同步心愿失败:', err);
+        });
     }
+    
+    renderWishlist();
+}
 
-    .wish-input-section input,
-    .wish-input-section button {
-        width: 100%;
+function deleteWish(index) {
+    if (confirm('确定删除这个心愿吗？')) {
+        const wishes = getWishes();
+        wishes.splice(index, 1);
+        localStorage.setItem('wishes', JSON.stringify(wishes));
+        
+        // 同步到 Firebase
+        if (isOnline) {
+            database.ref('wishes').set(wishes).catch(err => {
+                console.error('同步心愿失败:', err);
+            });
+        }
+        
+        renderWishlist();
+        showNotification('心愿已删除');
     }
 }
+
+// ===== 我想你功能 =====
+function renderMissHistory() {
+    const records = getMissYouRecords();
+    const container = document.getElementById('missHistory');
+    container.innerHTML = '';
+    
+    if (records.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-light); text-align: center;">暂无想念记录</p>';
+        return;
+    }
+    
+    // 按时间倒序排列
+    records.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    records.forEach(record => {
+        const item = document.createElement('div');
+        item.className = 'miss-record';
+        
+        const author = record.user === 'me' ? '我' : '男友';
+        const time = new Date(record.date).toLocaleString('zh-CN');
+        
+        item.innerHTML = `
+            <div>
+                <span class="miss-record-user">${author}</span>
+                <span class="miss-record-time">${time}</span>
+            </div>
+        `;
+        
+        container.appendChild(item);
+    });
+    
+    // 更新统计信息
+    document.getElementById('missStatsTotal').textContent = records.length;
+    
+    if (records.length > 0) {
+        const lastTime = new Date(records[0].date).toLocaleString('zh-CN');
+        document.getElementById('missStatsLast').textContent = lastTime;
+    }
+}
+
+// ===== 统计图表功能 =====
+function updateChart() {
+    const timeRange = document.getElementById('timeRange').value;
+    const chartType = document.getElementById('chartType').value;
+    
+    const checkIns = getCheckIns();
+    let data = {};
+    
+    if (chartType === 'pie') {
+        // 饼状图：各项目占比
+        checkIns.forEach(checkIn => {
+            data[checkIn.project] = (data[checkIn.project] || 0) + 1;
+        });
+        drawPieChart(data);
+    } else {
+        // 折线图：每日打卡次数
+        data = getCheckInsByTimeRange(timeRange);
+        drawLineChart(data);
+    }
+}
+
+function getCheckInsByTimeRange(timeRange) {
+    const checkIns = getCheckIns();
+    const data = {};
+    
+    checkIns.forEach(checkIn => {
+        const date = new Date(checkIn.startTime);
+        let key = '';
+        
+        if (timeRange === 'week') {
+            // 获取周一到周日
+            const d = new Date(date);
+            const day = d.getDay();
+            const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+            const monday = new Date(d.setDate(diff));
+            key = monday.toLocaleDateString('zh-CN');
+        } else if (timeRange === 'month') {
+            key = date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
+        } else if (timeRange === 'quarter') {
+            const quarter = Math.ceil((date.getMonth() + 1) / 3);
+            key = `Q${quarter}`;
+        }
+        
+        data[key] = (data[key] || 0) + 1;
+    });
+    
+    return data;
+}
+
+function drawPieChart(data) {
+    const ctx = document.getElementById('statsChart').getContext('2d');
+    
+    if (chart) {
+        chart.destroy();
+    }
+    
+    chart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(data),
+            datasets: [{
+                data: Object.values(data),
+                backgroundColor: [
+                    '#5DADE2',
+                    '#AED6F1',
+                    '#85C1E2',
+                    '#52C41A',
+                    '#FAAD14',
+                    '#F5222D',
+                ],
+                borderColor: '#FFFFFF',
+                borderWidth: 2,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                },
+            },
+        },
+    });
+}
+
+function drawLineChart(data) {
+    const ctx = document.getElementById('statsChart').getContext('2d');
+    
+    if (chart) {
+        chart.destroy();
+    }
+    
+    chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: Object.keys(data),
+            datasets: [{
+                label: '打卡次数',
+                data: Object.values(data),
+                borderColor: '#5DADE2',
+                backgroundColor: 'rgba(93, 173, 226, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4,
+                pointBackgroundColor: '#5DADE2',
+                pointBorderColor: '#FFFFFF',
+                pointBorderWidth: 2,
+                pointRadius: 5,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                },
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1,
+                    },
+                },
+            },
+        },
+    });
+}
+
+// ===== 数据管理 =====
+function getDailyRecords(date) {
+    const key = `records_${date.toDateString()}`;
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : [];
+}
+
+function saveDailyRecords(date, records) {
+    const key = `records_${date.toDateString()}`;
+    localStorage.setItem(key, JSON.stringify(records));
+}
+
+function getDailyMessages(date) {
+    const key = `messages_${date.toDateString()}`;
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : [];
+}
+
+function saveDailyMessages(date, messages) {
+    const key = `messages_${date.toDateString()}`;
+    localStorage.setItem(key, JSON.stringify(messages));
+}
+
+function getMessages() {
+    const data = localStorage.getItem('messages');
+    return data ? JSON.parse(data) : [];
+}
+
+function getCheckIns() {
+    const data = localStorage.getItem('checkIns');
+    return data ? JSON.parse(data) : [];
+}
+
+function getWishes() {
+    const data = localStorage.getItem('wishes');
+    return data ? JSON.parse(data) : [];
+}
+
+function getMissYouRecords() {
+    const data = localStorage.getItem('missYouRecords');
+    return data ? JSON.parse(data) : [];
+}
+
+// ===== 日期配置 =====
+function loadDateConfig() {
+    const togetherDate = localStorage.getItem('togetherDate');
+    const examDate = localStorage.getItem('examDate');
+    
+    if (togetherDate) {
+        CONFIG.togetherDate = new Date(togetherDate);
+        document.getElementById('togetherDate').value = togetherDate.split('T')[0];
+    } else {
+        document.getElementById('togetherDate').value = CONFIG.togetherDate.toISOString().split('T')[0];
+    }
+    
+    if (examDate) {
+        CONFIG.examDate = new Date(examDate);
+        document.getElementById('examDate').value = examDate.split('T')[0];
+    } else {
+        document.getElementById('examDate').value = CONFIG.examDate.toISOString().split('T')[0];
+    }
+}
+
+function updateTogetherDate() {
+    const date = document.getElementById('togetherDate').value;
+    if (date) {
+        CONFIG.togetherDate = new Date(date);
+        localStorage.setItem('togetherDate', new Date(date).toISOString());
+        updateCountdown();
+        showNotification('在一起的日期已更新');
+    }
+}
+
+function updateExamDate() {
+    const date = document.getElementById('examDate').value;
+    if (date) {
+        CONFIG.examDate = new Date(date);
+        localStorage.setItem('examDate', new Date(date).toISOString());
+        updateExamCountdown();
+        showNotification('考研日期已更新');
+    }
+}
+
+// ===== 数据导出导入 =====
+function exportData() {
+    const allData = {
+        currentUser: localStorage.getItem('currentUser'),
+        togetherDate: localStorage.getItem('togetherDate'),
+        examDate: localStorage.getItem('examDate'),
+        messages: localStorage.getItem('messages'),
+        checkIns: localStorage.getItem('checkIns'),
+        wishes: localStorage.getItem('wishes'),
+        missYouRecords: localStorage.getItem('missYouRecords'),
+        checkInProjects: localStorage.getItem('checkInProjects'),
+    };
+    
+    // 导出所有日期的记录
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key.startsWith('records_') || key.startsWith('messages_')) {
+            allData[key] = localStorage.getItem(key);
+        }
+    }
+    
+    const dataStr = JSON.stringify(allData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `我们的日常_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    
+    URL.revokeObjectURL(url);
+    showNotification('数据已导出');
+}
+
+function importData() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    
+    input.onchange = function(e) {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        
+        reader.onload = function(event) {
+            try {
+                const data = JSON.parse(event.target.result);
+                
+                // 清空现有数据
+                localStorage.clear();
+                
+                // 导入数据
+                Object.keys(data).forEach(key => {
+                    if (data[key]) {
+                        localStorage.setItem(key, data[key]);
+                    }
+                });
+                
+                showNotification('数据已导入，页面将刷新');
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+            } catch (error) {
+                alert('数据导入失败，请检查文件格式');
+            }
+        };
+        
+        reader.readAsText(file);
+    };
+    
+    input.click();
+}
+
+function clearAllData() {
+    if (confirm('确定要清空所有数据吗？此操作不可撤销！')) {
+        localStorage.clear();
+        location.reload();
+    }
+}
+
+// ===== 工具函数 =====
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    modal.classList.remove('show');
+}
+
+function showNotification(message) {
+    // 创建通知元素
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background-color: var(--primary-blue);
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(93, 173, 226, 0.3);
+        z-index: 10000;
+        animation: slideUp 0.3s ease;
+    `;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.style.animation = 'fadeOut 0.3s ease';
+        setTimeout(() => {
+            notification.remove();
+        }, 300);
+    }, 2000);
+}
+
+// 添加淡出动画
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes fadeOut {
+        from {
+            opacity: 1;
+        }
+        to {
+            opacity: 0;
+        }
+    }
+`;
+document.head.appendChild(style);
+
+// ===== 页面加载完成 =====
+console.log('异地恋日常分享网站 - Firebase 版本已加载');
