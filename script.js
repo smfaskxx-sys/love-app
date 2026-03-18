@@ -776,7 +776,7 @@ function loadMessages() {
             }
             
             wall.appendChild(card);
-        });e.replies && Object.keys(message.replies).length > 0) {
+        if(message.replies && Object.keys(message.replies).length > 0) {
                 const repliesDiv = document.createElement('div');
                 repliesDiv.className = 'message-replies';
                 
