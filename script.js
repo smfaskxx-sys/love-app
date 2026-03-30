@@ -705,130 +705,157 @@ function processChartData(records, timeRange) {
     };
 }
 
-// ==================== 留言墙功能 ====================
+// ==================== 留言墙（核心） ====================
+
+// ⭐ 实时监听
+function initRealtimeMessages() {
+    const wall = document.getElementById('messagesWall');
+    wall.innerHTML = '<div class="empty-state">加载中...</div>';
+
+    db.ref('wallMessages')
+        .orderByChild('timestamp')
+        .on('value', snapshot => {
+            const messages = snapshot.val() || {};
+            renderMessages(messages);
+        });
+}
+
+// 渲染留言列表（倒序）
+function renderMessages(messages) {
+    const wall = document.getElementById('messagesWall');
+    wall.innerHTML = '';
+
+    if (Object.keys(messages).length === 0) {
+        wall.innerHTML = '<div class="empty-state">还没有留言</div>';
+        return;
+    }
+
+    Object.entries(messages)
+        .reverse()
+        .forEach(([id, msg]) => {
+            const card = createMessageCard(id, msg);
+            wall.appendChild(card);
+        });
+}
+
+// 创建留言卡片
+function createMessageCard(id, msg) {
+    const card = document.createElement('div');
+    card.className = 'message-card';
+
+    card.innerHTML = `
+        <div class="message-header">
+            <span class="message-user">${formatUser(msg.user)}</span>
+            <span class="message-time">${formatTime(msg.timestamp)}</span>
+        </div>
+        <div class="message-content">${escapeHTML(msg.content)}</div>
+        <div class="message-actions">
+            <button onclick="showReplyModal('${id}')">回复</button>
+            <button onclick="deleteMessage('${id}')">删除</button>
+        </div>
+    `;
+
+    // 渲染回复
+    if (msg.replies && Object.keys(msg.replies).length > 0) {
+        card.appendChild(renderReplies(msg.replies));
+    }
+
+    return card;
+}
+
+// 渲染回复列表
+function renderReplies(replies) {
+    const container = document.createElement('div');
+    container.className = 'message-replies';
+
+    Object.entries(replies).forEach(([rid, r]) => {
+        const div = document.createElement('div');
+        div.className = 'reply-item';
+
+        div.innerHTML = `
+            <div class="reply-header">
+                <span>└ ${formatUser(r.user)}</span>
+                <span>${formatTime(r.timestamp)}</span>
+            </div>
+            <div class="reply-content">${escapeHTML(r.content)}</div>
+        `;
+
+        container.appendChild(div);
+    });
+
+    return container;
+}
+
+// ==================== 发送留言 ====================
 function sendMessage() {
-    const text = document.getElementById('messageText').value;
-    if (!text.trim()) {
+    if (isSending) return;
+
+    const input = document.getElementById('messageText');
+    const text = input.value.trim();
+
+    if (!text) {
         showNotification('请输入留言内容');
         return;
     }
-    
-    const now = new Date();
+
+    isSending = true;
+
     db.ref('wallMessages').push({
         user: currentUser,
         content: text,
-        timestamp: now.toISOString(),
+        timestamp: new Date().toISOString(),
         replies: {}
     }).then(() => {
-        showNotification('留言已发送');
-        document.getElementById('messageText').value = '';
-        loadMessages();
+        input.value = '';
+        showNotification('发送成功');
+    }).finally(() => {
+        isSending = false;
     });
 }
 
-function loadMessages() {
-    const wall = document.getElementById('messagesWall');
-    wall.innerHTML = '';
-    
-    db.ref('wallMessages').orderByChild('timestamp').once('value', snapshot => {
-        const messages = snapshot.val() || {};
-        
-        if (Object.keys(messages).length === 0) {
-            wall.innerHTML = '<div class="empty-state">还没有留言，快来发送第一条吧！</div>';
-            return;
-        }
-              Object.entries(messages).reverse().forEach(([key, message]) => {
-            const card = document.createElement('div');
-            card.className = 'message-card';
-            const time = new Date(message.timestamp).toLocaleString('zh-CN');
-            
-            card.innerHTML = `
-                <div class="message-header">
-                    <span class="message-user">${message.user === 'huanghuang' ? '璠璠' : '渲渲'}</span>
-                    <span class="message-time">${time}</span>
-                </div>
-                <div class="message-content">${message.content}</div>
-                <div class="message-actions">
-                    <button class="btn-secondary" onclick="showReplyModal('${key}')">回复</button>
-                </div>
-            `;
-            
-            // 添加回复显示
-            if (message.replies && Object.keys(message.replies).length > 0) {
-                const repliesDiv = document.createElement('div');
-                repliesDiv.className = 'message-replies';
-                
-                Object.entries(message.replies).forEach(([replyKey, reply]) => {
-                    const replyTime = new Date(reply.timestamp).toLocaleString('zh-CN');
-                    const replyItem = document.createElement('div');
-                    replyItem.className = 'reply-item';
-                    replyItem.innerHTML = `
-                        <div class="reply-header">
-                            <span class="reply-user">└─ ${reply.user === 'huanghuang' ? '璠璠' : '渲渲'}</span>
-                            <span class="reply-time">${replyTime}</span>
-                        </div>
-                        <div class="reply-content">${reply.content}</div>
-                    `;
-                    repliesDiv.appendChild(replyItem);
-                });
-                
-                card.appendChild(repliesDiv);
-            }
-            
-            wall.appendChild(card);
-        if(message.replies && Object.keys(message.replies).length > 0) {
-                const repliesDiv = document.createElement('div');
-                repliesDiv.className = 'message-replies';
-                
-                Object.entries(message.replies).forEach(([replyKey, reply]) => {
-                    const replyTime = new Date(reply.timestamp).toLocaleString('zh-CN');
-                    const replyItem = document.createElement('div');
-                    replyItem.className = 'reply-item';
-                    replyItem.innerHTML = `
-                        <div class="reply-header">
-                            <span class="reply-user">└─ ${reply.user === 'huanghuang' ? '璠璠' : '渲渲'}</span>
-                            <span class="reply-time">${replyTime}</span>
-                        </div>
-                        <div class="reply-content">${reply.content}</div>
-                    `;
-                    repliesDiv.appendChild(replyItem);
-                });
-                
-                card.appendChild(repliesDiv);
-            }
-            
-            wall.appendChild(card);
+// ==================== 删除留言 ====================
+function deleteMessage(id) {
+    if (!confirm('确定删除这条留言吗？')) return;
+
+    db.ref(`wallMessages/${id}`)
+        .remove()
+        .then(() => {
+            showNotification('已删除');
         });
-    });
 }
 
-function showReplyModal(messageId) {
-    // 存储当前消息ID
-    window.currentMessageId = messageId;
+// ==================== 回复功能 ====================
+function showReplyModal(id) {
+    window.currentMessageId = id;
     document.getElementById('replyModal').classList.remove('hidden');
 }
 
+function closeModal(id) {
+    document.getElementById(id).classList.add('hidden');
+}
+
 function saveReply() {
-    const text = document.getElementById('replyText').value;
-    if (!text.trim()) {
+    const input = document.getElementById('replyText');
+    const text = input.value.trim();
+
+    if (!text) {
         showNotification('请输入回复内容');
         return;
     }
-    
-    const messageId = window.currentMessageId;
-    const now = new Date();
-    
-    db.ref(`wallMessages/${messageId}/replies`).push({
-        user: currentUser,
-        content: text,
-        timestamp: now.toISOString()
-    }).then(() => {
-        showNotification('回复已发送');
-        document.getElementById('replyText').value = '';
-        closeModal('replyModal');
-        loadMessages();
-    });
+
+    db.ref(`wallMessages/${window.currentMessageId}/replies`)
+        .push({
+            user: currentUser,
+            content: text,
+            timestamp: new Date().toISOString()
+        })
+        .then(() => {
+            input.value = '';
+            closeModal('replyModal');
+            showNotification('回复成功');
+        });
 }
+
 
 // ==================== 心愿清单功能 ====================
 function addWish() {
